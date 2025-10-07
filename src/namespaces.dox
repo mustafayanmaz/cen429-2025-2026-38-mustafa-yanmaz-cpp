@@ -19,7 +19,7 @@
 
  /**
  * @namespace Coruh::Calculator
- * @brief Namespace for calculator functions and classes.
+ * @brief Namespace for petcare functions and classes.
  *
- * This namespace contains a collection of calculator functions and classes that provide commonly-used functionality.
+ * This namespace contains a collection of petcare functions and classes that provide commonly-used functionality.
  */

@@ -944,8 +944,8 @@ WARN_LOGFILE           = doxygen_lib_linux.log
 # Note: If this tag is empty the current directory is searched.
 
 INPUT                  = README.md \
-                         src/calculator \
-                         src/calculatorapp \
+                         src/petcare \
+                         src/petcareapp \
                          src/utility
 
 # This tag can be used to specify the character encoding of the source files

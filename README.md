@@ -146,7 +146,7 @@ you can use our public notes
 
 - https://github.com/coruhtech/vs-docker-wsl-cpp-development
 
-- [GitHub - ucoruh/ns3-wsl-win10-setup: ns3 windows 10 WSL2 setup and usage](https://github.com/ucoruh/ns3-wsl-win10-setup)
+- [GitHub - musalon/ns3-wsl-win10-setup: ns3 windows 10 WSL2 setup and usage](https://github.com/musalon/ns3-wsl-win10-setup)
 
 After WSL installation, right click and open WSL bash and run `7-build-app-linux.sh` this will provide similart task with windows and will generate report and libraries on release folder. 
 

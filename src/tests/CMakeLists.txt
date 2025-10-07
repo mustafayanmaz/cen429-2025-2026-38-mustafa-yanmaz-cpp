@@ -38,7 +38,7 @@ if(ENABLE_UTILITY)
 endif()
 
 # Calculator tests
-if(ENABLE_CALCULATOR)
-	add_subdirectory(calculator)
+if(ENABLE_PETCARE)
+	add_subdirectory(petcare)
 endif()
 

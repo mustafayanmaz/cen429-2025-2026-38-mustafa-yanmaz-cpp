@@ -82,8 +82,8 @@ cd ..
 echo Running Test Executable
 
 ./publish_linux/bin/utility_tests
-./publish_linux/bin/calculator_tests
-./publish_linux/bin/calculatorapp
+./publish_linux/bin/petcare_tests
+./publish_linux/bin/petcareapp
 
 echo "Generate Test Coverage Data"
 lcov --rc lcov_branch_coverage=1 --capture --initial --directory . --output-file coverage_linux.info
@@ -95,8 +95,8 @@ lcov --rc lcov_branch_coverage=1 --list coverage_linux.info
 echo "Generate Test Report"
 reportgenerator "-title:Calculator Library Unit Test Coverage Report (Linux)" "-reports:**/coverage_linux.info" "-targetdir:docs/coveragereportliblinux" "-reporttypes:Html" 
 
-"-sourcedirs:src/utility/src;src/utility/header;src/calculator/src;src/calculator/header;src/calculatorapp/src;src/calculatorapp/header;src/tests/utility;src/tests/calculator" "-filefilters:-*minkernel\*;-*gtest*;-*a\_work\*;-*gtest-*;-*gtest.cc;-*gtest.h;-*build*" "-historydir:report_test_hist_linux"
-reportgenerator "-reports:**/coverage_linux.info" "-targetdir:assets/codecoverageliblinux" "-reporttypes:Badges" "-sourcedirs:src/utility/src;src/utility/header;src/calculator/src;src/calculator/header;src/calculatorapp/src;src/calculatorapp/header;src/tests/utility;src/tests/calculator" "-filefilters:-*minkernel\*;-*gtest*;-*a\_work\*;-*gtest-*;-*gtest.cc;-*gtest.h;-*build*"
+"-sourcedirs:src/utility/src;src/utility/header;src/petcare/src;src/petcare/header;src/petcareapp/src;src/petcareapp/header;src/tests/utility;src/tests/petcare" "-filefilters:-*minkernel\*;-*gtest*;-*a\_work\*;-*gtest-*;-*gtest.cc;-*gtest.h;-*build*" "-historydir:report_test_hist_linux"
+reportgenerator "-reports:**/coverage_linux.info" "-targetdir:assets/codecoverageliblinux" "-reporttypes:Badges" "-sourcedirs:src/utility/src;src/utility/header;src/petcare/src;src/petcare/header;src/petcareapp/src;src/petcareapp/header;src/tests/utility;src/tests/petcare" "-filefilters:-*minkernel\*;-*gtest*;-*a\_work\*;-*gtest-*;-*gtest.cc;-*gtest.h;-*build*"
 
 echo "Copy the 'assets' folder and its contents to 'docs' recursively"
 cp -R assets "docs/assets"
@@ -115,13 +115,13 @@ tar -czvf release_linux/linux-publish-binaries.tar.gz -C publish_linux .
 echo "Package Publish Linux Binaries"
 mkdir -p build_linux/build/Release
 cp -R src/utility/header build_linux/build/Release
-cp -R src/calculator/header build_linux/build/Release
+cp -R src/petcare/header build_linux/build/Release
 tar -czvf release_linux/linux-release-binaries.tar.gz -C build_linux/build/Release .
 
 echo "Package Publish Debug Linux Binaries"
 mkdir -p build_linux/build/Debug
 cp -R src/utility/header build_linux/build/Debug
-cp -R src/calculator/header build_linux/build/Debug
+cp -R src/petcare/header build_linux/build/Debug
 tar -czvf release_linux/linux-debug-binaries.tar.gz -C build_linux/build/Debug .
 
 echo "Package Publish Test Coverage Report"
