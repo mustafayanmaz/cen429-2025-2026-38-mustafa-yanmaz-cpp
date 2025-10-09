@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include "methods.h"
 #include <stdint.h>
+#include "secureMemory.h"
 /**
  * @brief A simple hash function for strings.
  * @param str Input string to be hashed.
@@ -62,11 +63,12 @@ void addUser(HashTable* table, const char* username, const char* password) {
         current = current->next;}
 
     User* newUser = (User*)malloc(sizeof(User));
-    newUser->username = strdup(username);
+    newUser->username = secure_strdup(username);
 
     char* encrypted = encryptPassword(password);
-    newUser->encryptedPassword = strdup(encrypted);
-    free(encrypted);
+    newUser->encryptedPassword = secure_strdup(encrypted);
+    // Securely wipe the temporary encrypted password
+    secure_str_free(encrypted);
 
     newUser->next = table->buckets[index];
     table->buckets[index] = newUser;
@@ -87,12 +89,14 @@ int authenticateUser(HashTable* table, const char* username, const char* passwor
     while (current) {
         if (strcmp(current->username, username) == 0 &&
             strcmp(current->encryptedPassword, encryptedPassword) == 0) {
-            free(encryptedPassword);
+            // Securely wipe the temporary encrypted password
+            secure_str_free(encryptedPassword);
             return 1; // Authentication successful
         }
         current = current->next;
     }
-    free(encryptedPassword);
+    // Securely wipe the temporary encrypted password
+    secure_str_free(encryptedPassword);
     return 0; // Authentication failed
 }
 
@@ -157,14 +161,17 @@ void loadUsersFromFile(HashTable* table, const char* filename) {
 
         unsigned int index = hashFunction(decryptedUsername);
         User* newUser = (User*)malloc(sizeof(User));
-        newUser->username = strdup(decryptedUsername);
-        newUser->encryptedPassword = strdup(encryptedPassword);
+        newUser->username = secure_strdup(decryptedUsername);
+        newUser->encryptedPassword = secure_strdup(encryptedPassword);
         newUser->next = table->buckets[index];
         table->buckets[index] = newUser;
 
+        // Securely wipe temporary data
+        secure_wipe(encryptedUsername, usernameLen);
         free(encryptedUsername);
+        secure_wipe(encryptedPassword, passwordLen);
         free(encryptedPassword);
-        free(decryptedUsername);
+        secure_str_free(decryptedUsername);
     }
 
     fclose(file);
@@ -180,12 +187,13 @@ void freeHashTable(HashTable* table) {
         while (current) {
             User* temp = current;
             current = current->next;
-            free(temp->username);
-            free(temp->encryptedPassword);
-            free(temp);
+            // Securely wipe and free sensitive user data
+            secure_str_free(temp->username);
+            secure_str_free(temp->encryptedPassword);
+            secure_free(temp, sizeof(User));
         }
     }
-    free(table);
+    secure_free(table, sizeof(HashTable));
 }
 
 /**
@@ -231,11 +239,15 @@ void updatePet(Pet* petList, const char* name, const char* owner) {
             printf("Enter new age: ");
             scanf("%d", &newAge);
 
-            free(petList->name);
-            free(petList->type);
-            petList->name = strdup(newName);
-            petList->type = strdup(newType);
+            // Securely wipe and free old data
+            secure_str_free(petList->name);
+            secure_str_free(petList->type);
+            petList->name = secure_strdup(newName);
+            petList->type = secure_strdup(newType);
             petList->age = newAge;
+            // Wipe the input buffers
+            secure_wipe(newName, sizeof(newName));
+            secure_wipe(newType, sizeof(newType));
             printf("Pet updated successfully.\n");
             return;
         }
@@ -260,10 +272,11 @@ void deletePet(Pet** petList, const char* name, const char* owner) {
                 *petList = current->next;
             }
             if (current->next) {current->next->prev = current->prev;}
-            free(current->name);
-            free(current->type);
-            free(current->owner);
-            free(current);
+            // Securely wipe and free pet data
+            secure_str_free(current->name);
+            secure_str_free(current->type);
+            secure_str_free(current->owner);
+            secure_free(current, sizeof(Pet));
             printf("Pet deleted successfully.\n");
             return;
         }
@@ -348,12 +361,16 @@ void loadPetsFromFile(Pet** petList, const char* filename) {
 
         addPet(petList, decryptedName, decryptedType, age, decryptedOwner);
 
+        // Securely wipe temporary data
+        secure_wipe(encryptedName, nameLen);
         free(encryptedName);
+        secure_wipe(encryptedType, typeLen);
         free(encryptedType);
+        secure_wipe(encryptedOwner, ownerLen);
         free(encryptedOwner);
-        free(decryptedName);
-        free(decryptedType);
-        free(decryptedOwner);
+        secure_str_free(decryptedName);
+        secure_str_free(decryptedType);
+        secure_str_free(decryptedOwner);
     }
 
     fclose(file);
@@ -367,10 +384,11 @@ void freePetList(Pet* petList) {
     while (petList) {
         Pet* temp = petList;
         petList = petList->next;
-        free(temp->name);
-        free(temp->type);
-        free(temp->owner);
-        free(temp);
+        // Securely wipe and free pet data
+        secure_str_free(temp->name);
+        secure_str_free(temp->type);
+        secure_str_free(temp->owner);
+        secure_free(temp, sizeof(Pet));
     }
 }
 

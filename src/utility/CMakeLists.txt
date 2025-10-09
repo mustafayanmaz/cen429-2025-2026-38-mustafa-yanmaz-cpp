@@ -35,6 +35,7 @@ install(TARGETS ${LIBNAME}
 # Copy required header to the installation include folder		
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/header/commonTypes.h
               ${CMAKE_CURRENT_SOURCE_DIR}/header/mathUtility.h
+              ${CMAKE_CURRENT_SOURCE_DIR}/header/secureMemory.h
         DESTINATION include)
 
 # Export the crypto target so other modules can use it
