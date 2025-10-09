@@ -18,7 +18,7 @@
  */
 
  /**
- * @namespace Coruh::Calculator
+ * @namespace Coruh::petcare
  * @brief Namespace for petcare functions and classes.
  *
  * This namespace contains a collection of petcare functions and classes that provide commonly-used functionality.

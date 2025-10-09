@@ -28,7 +28,7 @@ target_include_directories(${LIBNAME} PUBLIC
 target_link_libraries(${LIBNAME} PRIVATE utility)
 
 # creates preprocessor definition used for library exports
-add_compile_definitions("CORUH_PETCARE_LIB_EXPORTS")
+add_compile_definitions("CORUH_petcare_LIB_EXPORTS")
 
 install(TARGETS ${LIBNAME}
         LIBRARY DESTINATION lib

@@ -1,11 +1,11 @@
 /**
  * @file petcareapp.h
- * @brief Calculator Application header file
+ * @brief petcare Application header file
  *
  */
 
-#ifndef PETCARE_APP_H
-#define PETCARE_APP_H
+#ifndef petcare_APP_H
+#define petcare_APP_H
 
 
-#endif // PETCARE_APP_H
+#endif // petcare_APP_H

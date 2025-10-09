@@ -37,8 +37,8 @@ if(ENABLE_UTILITY)
 	add_subdirectory(utility)
 endif()
 
-# Calculator tests
-if(ENABLE_PETCARE)
+# petcare tests
+if(ENABLE_petcare)
 	add_subdirectory(petcare)
 endif()
 
