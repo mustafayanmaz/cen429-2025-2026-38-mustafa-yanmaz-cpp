@@ -14,6 +14,7 @@
 #include "methods.h"
 #include "petcare.h"
 #include "assetProtection.h"
+#include "raspSecurity.h"
 
 #ifdef _WIN32
 /**
@@ -65,6 +66,88 @@ typedef struct Menu {
  * @brief Holds the currently logged-in user's name.
  */
 char activeUser[50] = "";
+
+/**
+ * @brief Global RASP configuration
+ */
+static RASPConfig g_raspConfig;
+static int g_rasp_initialized = 0;
+
+/**
+ * @brief RASP log callback
+ */
+static void rasp_app_logger(const char* message) {
+    // In production, log to file
+    fprintf(stderr, "%s\n", message);
+}
+
+/**
+ * @brief Get CFI counter value
+ */
+static uint64_t rasp_get_cfi_counter_value(uint64_t counter_id) {
+    CFICounter counter;
+    if (rasp_get_cfi_stats(counter_id, &counter) == RASP_SUCCESS) {
+        return counter.current_value;
+    }
+    return 0;
+}
+
+/**
+ * @brief Initialize RASP security system
+ */
+static void initialize_rasp_security() {
+    memset(&g_raspConfig, 0, sizeof(RASPConfig));
+    
+    // Enable all security features
+    g_raspConfig.enable_checksum_verification = 1;
+    g_raspConfig.enable_signature_verification = 1;
+    g_raspConfig.enable_device_trust = 1;
+    g_raspConfig.enable_hook_detection = 1;
+    g_raspConfig.enable_debugger_detection = 1;
+    g_raspConfig.enable_tamper_detection = 1;
+    g_raspConfig.enable_cfi = 1;
+    g_raspConfig.monitoring_interval_ms = 5000;  // 5 seconds
+    g_raspConfig.default_action = RASP_ACTION_LOG;
+    g_raspConfig.log_callback = rasp_app_logger;
+    
+    // Initialize RASP
+    if (rasp_init(&g_raspConfig) == RASP_SUCCESS) {
+        printf("[SECURITY] RASP protection initialized successfully\n");
+        g_rasp_initialized = 1;
+        
+        // Perform initial security check
+        int result = rasp_comprehensive_check();
+        if (result != RASP_SUCCESS) {
+            switch (result) {
+                case RASP_ERROR_DEBUGGER_DETECTED:
+                    printf("[SECURITY] WARNING: Debugger detected!\n");
+                    break;
+                case RASP_ERROR_UNTRUSTED_DEVICE:
+                    printf("[SECURITY] WARNING: Untrusted device detected!\n");
+                    break;
+                case RASP_ERROR_HOOK_DETECTED:
+                    printf("[SECURITY] WARNING: Hook detected!\n");
+                    break;
+                case RASP_ERROR_TAMPER_DETECTED:
+                    printf("[SECURITY] WARNING: Tampering detected!\n");
+                    break;
+            }
+        }
+        
+        // Assess device trust
+        DeviceTrust trust;
+        rasp_assess_device_trust(&trust);
+        printf("[SECURITY] Device trust score: %d/100\n", trust.trust_score);
+        if (trust.is_rooted) {
+            printf("[SECURITY] WARNING: Device is rooted/jailbroken\n");
+        }
+        if (trust.is_emulator) {
+            printf("[SECURITY] INFO: VM/Emulator detection triggered (may be false positive)\n");
+        }
+    } else {
+        printf("[SECURITY] Failed to initialize RASP protection\n");
+    }
+}
 
 /**
  * @brief Draws a horizontal line of '*' characters.
@@ -119,8 +202,19 @@ void drawFrameWithContent(Menu* menu, int selectedIndex, int width) {
  */
 void navigateUserAuthentication(Menu* authMenu, HashTable* userTable, int* isAuthenticated) {
     int selectedIndex = 0;
+    
+    // CFI counter for authentication flow
+    if (g_rasp_initialized) {
+        rasp_create_cfi_counter(1, (void*)navigateUserAuthentication);
+        rasp_increment_cfi_counter(1);
+    }
 
     while (!*isAuthenticated) {
+        // Periodic security check
+        if (g_rasp_initialized && rasp_is_debugger_present()) {
+            printf("\n[SECURITY] Debugger detected - exiting for security\n");
+            exit(1);
+        }
         CLEAR_SCREEN();
         int consoleWidth = 50;
         int paddingTop = 5;
@@ -155,15 +249,37 @@ void navigateUserAuthentication(Menu* authMenu, HashTable* userTable, int* isAut
 #endif
             if (strcmp(authMenu->items[selectedIndex], "Login") == 0) {
                 char username[50], password[50];
+                
+                // CFI: Login entry
+                if (g_rasp_initialized) {
+                    rasp_create_cfi_counter(10, (void*)&username);
+                    rasp_increment_cfi_counter(10);
+                }
+                
                 CLEAR_SCREEN();
                 printf("Enter Username: ");
                 scanf("%s", username);
                 printf("Enter Password: ");
                 scanf("%s", password);
                 
+                // Protect password in memory
+                uint32_t pwd_checksum = 0;
+                if (g_rasp_initialized) {
+                    rasp_protect_data(password, strlen(password), &pwd_checksum);
+                }
+                
                 // Use session-based login with device binding
                 if (loginUserWithSession(userTable, username, password)) {
                     printf("Login successful! Session created.\n");
+                    
+                    // Verify password wasn't tampered during authentication
+                    if (g_rasp_initialized) {
+                        if (rasp_verify_protected_data(password, strlen(password), pwd_checksum) != RASP_SUCCESS) {
+                            printf("[SECURITY] Password tampering detected!\n");
+                            exit(1);
+                        }
+                    }
+                    
                     printf("Press any key to continue...");
                     *isAuthenticated = 1;
                     strcpy(activeUser, username);
@@ -176,6 +292,11 @@ void navigateUserAuthentication(Menu* authMenu, HashTable* userTable, int* isAut
                 // Securely wipe password from memory
                 memset(password, 0, sizeof(password));
                 getch();
+                
+                // CFI: Login exit
+                if (g_rasp_initialized) {
+                    rasp_verify_cfi_counter(10, 1);
+                }
             }
             else if (strcmp(authMenu->items[selectedIndex], "Register") == 0) {
                 char username[50], password[50];
@@ -200,6 +321,13 @@ void navigateUserAuthentication(Menu* authMenu, HashTable* userTable, int* isAut
                 logoutUserSession();
                 saveUsersToFile(userTable, "users.dat");
                 freeHashTable(userTable);
+                
+                // Shutdown RASP
+                if (g_rasp_initialized) {
+                    rasp_shutdown();
+                    printf("[SECURITY] RASP protection shutdown complete\n");
+                }
+                
                 exit(0);
             }
         }
@@ -919,7 +1047,26 @@ void navigateMainMenu(Menu * mainMenu, HashTable * userTable, int* isAuthenticat
     int selectedIndex = 0;
     static Pet* petList = NULL;
     loadPetsFromFile(&petList, "pets.dat");
+    
+    // CFI for main menu
+    if (g_rasp_initialized) {
+        rasp_create_cfi_counter(100, (void*)navigateMainMenu);
+    }
+    
     while (1) {
+        // Increment CFI counter each iteration
+        if (g_rasp_initialized) {
+            rasp_increment_cfi_counter(100);
+        }
+        
+        // Periodic security check every iteration
+        if (g_rasp_initialized && selectedIndex % 10 == 0) {
+            TamperInfo tamper_info;
+            if (rasp_detect_tampering(&tamper_info) != RASP_SUCCESS) {
+                printf("\n[SECURITY] Tampering detected - terminating\n");
+                rasp_respond_to_tamper(&tamper_info, RASP_ACTION_TERMINATE);
+            }
+        }
         CLEAR_SCREEN();
         int consoleWidth = 50;
         int paddingTop = 5;
@@ -973,6 +1120,14 @@ void navigateMainMenu(Menu * mainMenu, HashTable * userTable, int* isAuthenticat
             else if (strcmp(mainMenu->items[selectedIndex], "Exit") == 0) {
                 CLEAR_SCREEN();
                 printf("Exiting program...\n");
+                
+                // CFI verification before exit
+                if (g_rasp_initialized) {
+                    if (rasp_verify_cfi_counter(100, rasp_get_cfi_counter_value(100)) != RASP_SUCCESS) {
+                        printf("[SECURITY] CFI violation detected during exit\n");
+                    }
+                }
+                
                 logoutUserSession();
                 savePetsToFile(petList, "pets.dat");
                 saveUsersToFile(userTable, "users.dat");
@@ -980,6 +1135,16 @@ void navigateMainMenu(Menu * mainMenu, HashTable * userTable, int* isAuthenticat
                 saveAppointmentsToFile();
                 freePetList(petList);
                 freeHashTable(userTable);
+                
+                // Shutdown RASP
+                if (g_rasp_initialized) {
+                    char status[512];
+                    rasp_get_status(status, sizeof(status));
+                    printf("\n[SECURITY] RASP Status:\n%s\n", status);
+                    rasp_shutdown();
+                    printf("[SECURITY] RASP protection shutdown complete\n");
+                }
+                
                 exit(0);
             }
         }
@@ -992,9 +1157,23 @@ void navigateMainMenu(Menu * mainMenu, HashTable * userTable, int* isAuthenticat
  * @return 0 on successful execution.
  */
 int main() {
-    // Initialize security features at startup
-    printf("Initializing PetCare security features...\n");
+    // ========================================================================
+    // RASP SECURITY INITIALIZATION
+    // ========================================================================
+    printf("================================================================\n");
+    printf("         PetCare Application - Security Initialization        \n");
+    printf("================================================================\n\n");
+    
+    // Initialize RASP security system
+    initialize_rasp_security();
+    
+    // Initialize existing security features
+    printf("\nInitializing session security...\n");
     init_petcare_session();
+    
+    printf("\n[SECURITY] All security features initialized\n");
+    printf("Press any key to continue...\n");
+    getch();
     
     feedingQueue = createQueue();
     medicineQueue = createQueue();

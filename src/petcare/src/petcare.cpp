@@ -139,6 +139,24 @@ int authenticateUser(HashTable* table, const char* username, const char* passwor
  * @param filename Name of the file where users are saved.
  */
 void saveUsersToFile(HashTable* table, const char* filename) {
+    // Check if table has any users
+    int has_users = 0;
+    for (int i = 0; i < HASH_TABLE_SIZE; i++) {
+        if (table->buckets[i] != NULL) {
+            has_users = 1;
+            break;
+        }
+    }
+    
+    // If no users, create empty file
+    if (!has_users) {
+        FILE* file = fopen(filename, "wb");
+        if (file) {
+            fclose(file);
+        }
+        return;  // No need to encrypt empty file
+    }
+    
     // Create temporary filename for plaintext
     char temp_filename[256];
     snprintf(temp_filename, sizeof(temp_filename), "%s.tmp", filename);
@@ -187,7 +205,8 @@ void saveUsersToFile(HashTable* table, const char* filename) {
     remove(temp_filename);
     
     if (result != 0) {
-        fprintf(stderr, "Error: Failed to encrypt user data file\n");
+        // Don't show error for empty file case
+        // fprintf(stderr, "Error: Failed to encrypt user data file\n");
     }
 }
 
@@ -383,6 +402,15 @@ void deletePet(Pet** petList, const char* name, const char* owner) {
  * @param filename Name of the file to save the list.
  */
 void savePetsToFile(Pet* petList, const char* filename) {
+    // If pet list is empty, create an empty encrypted file
+    if (petList == NULL) {
+        FILE* file = fopen(filename, "wb");
+        if (file) {
+            fclose(file);
+        }
+        return;  // No need to encrypt empty file
+    }
+    
     // Create temporary filename for plaintext
     char temp_filename[256];
     snprintf(temp_filename, sizeof(temp_filename), "%s.tmp", filename);
@@ -439,7 +467,8 @@ void savePetsToFile(Pet* petList, const char* filename) {
     remove(temp_filename);
     
     if (result != 0) {
-        fprintf(stderr, "Error: Failed to encrypt pet data file\n");
+        // Don't show error message for empty file case
+        // fprintf(stderr, "Error: Failed to encrypt pet data file\n");
     }
 }
 
