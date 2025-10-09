@@ -37,6 +37,7 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/header/commonTypes.h
               ${CMAKE_CURRENT_SOURCE_DIR}/header/mathUtility.h
               ${CMAKE_CURRENT_SOURCE_DIR}/header/secureMemory.h
               ${CMAKE_CURRENT_SOURCE_DIR}/header/whiteboxCrypto.h
+              ${CMAKE_CURRENT_SOURCE_DIR}/header/assetProtection.h
         DESTINATION include)
 
 # Export the crypto target so other modules can use it

@@ -646,4 +646,33 @@ void adoptStrayAnimal(StrayAnimal** strayList, const char* activeUser);
  */
 void listAllAdoptedAnimals(AdoptedAnimal* list);
 
+// ============================================================================
+// Session Management Functions (Asset Protection)
+// ============================================================================
+
+/**
+ * @brief Initialize device fingerprint and anti-tampering checks
+ */
+void init_petcare_session();
+
+/**
+ * @brief Login user with session creation and device binding
+ * @param table Pointer to the HashTable
+ * @param username User name
+ * @param password User password
+ * @return 1 if authenticated and session created, 0 otherwise
+ */
+int loginUserWithSession(HashTable* table, const char* username, const char* password);
+
+/**
+ * @brief Logout user and destroy session
+ */
+void logoutUserSession();
+
+/**
+ * @brief Check if current session is valid
+ * @return 1 if session is valid, 0 otherwise
+ */
+int isSessionValid();
+
 #endif

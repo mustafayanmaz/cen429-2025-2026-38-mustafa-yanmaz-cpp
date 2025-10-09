@@ -7,9 +7,37 @@
 #include <stdint.h>
 #include "secureMemory.h"
 #include "whiteboxCrypto.h"
+#include "assetProtection.h"
 
-// Default encryption password for file storage
-static const char* FILE_ENCRYPTION_PASSWORD = "PetCare2024SecureStorage!@#";
+// Obfuscated encryption password for file storage
+static ObfuscatedString g_file_encryption_password;
+static int g_password_initialized = 0;
+
+// Global device fingerprint and session
+static DeviceFingerprint g_device_fingerprint;
+static SessionData g_current_session;
+static int g_fingerprint_initialized = 0;
+static int g_session_active = 0;
+
+/**
+ * @brief Initialize the obfuscated file encryption password
+ */
+static void init_file_password() {
+    if (!g_password_initialized) {
+        const char* plaintext_password = "PetCare2024SecureStorage!@#";
+        create_obfuscated_string(plaintext_password, &g_file_encryption_password);
+        g_password_initialized = 1;
+    }
+}
+
+/**
+ * @brief Get the decrypted file encryption password
+ * @param buffer Output buffer (must be at least 256 bytes)
+ */
+static void get_file_password(char* buffer) {
+    init_file_password();
+    reveal_obfuscated_string(&g_file_encryption_password, buffer, 256);
+}
 
 /**
  * @brief A simple hash function for strings.
@@ -143,10 +171,17 @@ void saveUsersToFile(HashTable* table, const char* filename) {
 
     fclose(file);
     
+    // Get decrypted file password
+    char file_password[256];
+    get_file_password(file_password);
+    
     // Encrypt the temporary file using Whitebox Cryptography
     int result = wb_encrypt_file(temp_filename, filename, 
-                                  FILE_ENCRYPTION_PASSWORD, 
-                                  strlen(FILE_ENCRYPTION_PASSWORD));
+                                  file_password, 
+                                  strlen(file_password));
+    
+    // Securely wipe password
+    secure_wipe(file_password, sizeof(file_password));
     
     // Remove temporary file
     remove(temp_filename);
@@ -166,10 +201,17 @@ void loadUsersFromFile(HashTable* table, const char* filename) {
     char temp_filename[256];
     snprintf(temp_filename, sizeof(temp_filename), "%s.tmp", filename);
     
+    // Get decrypted file password
+    char file_password[256];
+    get_file_password(file_password);
+    
     // Decrypt the file using Whitebox Cryptography
     int result = wb_decrypt_file(filename, temp_filename,
-                                  FILE_ENCRYPTION_PASSWORD,
-                                  strlen(FILE_ENCRYPTION_PASSWORD));
+                                  file_password,
+                                  strlen(file_password));
+    
+    // Securely wipe password
+    secure_wipe(file_password, sizeof(file_password));
     
     if (result != 0) {
         // File might not be encrypted (backward compatibility)
@@ -381,10 +423,17 @@ void savePetsToFile(Pet* petList, const char* filename) {
 
     fclose(file);
     
+    // Get decrypted file password
+    char file_password[256];
+    get_file_password(file_password);
+    
     // Encrypt the temporary file using Whitebox Cryptography
     int result = wb_encrypt_file(temp_filename, filename,
-                                  FILE_ENCRYPTION_PASSWORD,
-                                  strlen(FILE_ENCRYPTION_PASSWORD));
+                                  file_password,
+                                  strlen(file_password));
+    
+    // Securely wipe password
+    secure_wipe(file_password, sizeof(file_password));
     
     // Remove temporary file
     remove(temp_filename);
@@ -404,10 +453,17 @@ void loadPetsFromFile(Pet** petList, const char* filename) {
     char temp_filename[256];
     snprintf(temp_filename, sizeof(temp_filename), "%s.tmp", filename);
     
+    // Get decrypted file password
+    char file_password[256];
+    get_file_password(file_password);
+    
     // Decrypt the file using Whitebox Cryptography
     int result = wb_decrypt_file(filename, temp_filename,
-                                  FILE_ENCRYPTION_PASSWORD,
-                                  strlen(FILE_ENCRYPTION_PASSWORD));
+                                  file_password,
+                                  strlen(file_password));
+    
+    // Securely wipe password
+    secure_wipe(file_password, sizeof(file_password));
     
     if (result != 0) {
         // File might not be encrypted (backward compatibility)
@@ -2007,5 +2063,85 @@ void listPetBirthdays(BPlusTree* birthdayTree, Pet* petList) {
     printf("\n--- List of Pet Birthdays ---\n");
     traverseBPlusNodeForBirthdays(birthdayTree->root, petList);
     printf("--------------------------------\n");
+}
+
+// ============================================================================
+// Session Management Functions
+// ============================================================================
+
+/**
+ * @brief Initialize device fingerprint and session management
+ */
+void init_petcare_session() {
+    // Check for tampering at startup
+    int tampering_status = detect_tampering();
+    if (tampering_status > 0) {
+        fprintf(stderr, "Warning: Potential tampering detected (code %d)\n", tampering_status);
+    }
+    
+    // Generate device fingerprint
+    if (!g_fingerprint_initialized) {
+        if (generate_device_fingerprint(&g_device_fingerprint) != 0) {
+            fprintf(stderr, "Error: Failed to generate device fingerprint\n");
+            return;
+        }
+        g_fingerprint_initialized = 1;
+    }
+}
+
+/**
+ * @brief Login user with session creation and device binding
+ * @param table Pointer to the HashTable
+ * @param username User name
+ * @param password User password
+ * @return 1 if authenticated and session created, 0 otherwise
+ */
+int loginUserWithSession(HashTable* table, const char* username, const char* password) {
+    // First authenticate normally
+    if (!authenticateUser(table, username, password)) {
+        return 0;
+    }
+    
+    // Ensure fingerprint is initialized
+    if (!g_fingerprint_initialized) {
+        init_petcare_session();
+    }
+    
+    // Create session (1 hour = 3600 seconds)
+    if (create_session(&g_device_fingerprint, 3600, &g_current_session) != 0) {
+        fprintf(stderr, "Error: Failed to create session\n");
+        return 0;
+    }
+    
+    g_session_active = 1;
+    return 1;
+}
+
+/**
+ * @brief Logout user and destroy session
+ */
+void logoutUserSession() {
+    if (g_session_active) {
+        invalidate_session(&g_current_session);
+        g_session_active = 0;
+    }
+}
+
+/**
+ * @brief Check if current session is valid
+ * @return 1 if session is valid, 0 otherwise
+ */
+int isSessionValid() {
+    if (!g_session_active || !g_fingerprint_initialized) {
+        return 0;
+    }
+    
+    uint8_t session_key[32];
+    int result = validate_session(&g_current_session, &g_device_fingerprint, session_key);
+    
+    // Securely wipe the session key
+    secure_wipe(session_key, sizeof(session_key));
+    
+    return (result == 0) ? 1 : 0;
 }
 

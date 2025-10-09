@@ -152,6 +152,15 @@ int secure_generate_key(unsigned char* key);
 int secure_generate_iv(unsigned char* iv);
 
 /**
+ * @brief Generates cryptographically secure random bytes
+ * 
+ * @param buffer Buffer to store random bytes
+ * @param size Number of random bytes to generate
+ * @return 0 on success, -1 on failure
+ */
+int secure_random_bytes(unsigned char* buffer, size_t size);
+
+/**
  * @brief Derives an encryption key from a password using PBKDF2-like algorithm
  * 
  * @param password Password string

@@ -208,6 +208,27 @@ int secure_generate_iv(unsigned char* iv) {
 }
 
 /**
+ * @brief Generates cryptographically secure random bytes
+ */
+int secure_random_bytes(unsigned char* buffer, size_t size) {
+    if (buffer == NULL || size == 0) {
+        return -1;
+    }
+    
+    init_prng();
+    
+    // Generate random bytes
+    for (size_t i = 0; i < size; i += 4) {
+        uint32_t rand_val = xorshift128();
+        size_t remaining = size - i;
+        size_t to_copy = (remaining < 4) ? remaining : 4;
+        memcpy(buffer + i, &rand_val, to_copy);
+    }
+    
+    return 0;
+}
+
+/**
  * @brief ChaCha20-like quarter round function
  */
 static void quarter_round(uint32_t* a, uint32_t* b, uint32_t* c, uint32_t* d) {

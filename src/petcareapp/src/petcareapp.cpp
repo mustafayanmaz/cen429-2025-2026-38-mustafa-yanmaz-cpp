@@ -13,6 +13,7 @@
 
 #include "methods.h"
 #include "petcare.h"
+#include "assetProtection.h"
 
 #ifdef _WIN32
 /**
@@ -159,14 +160,21 @@ void navigateUserAuthentication(Menu* authMenu, HashTable* userTable, int* isAut
                 scanf("%s", username);
                 printf("Enter Password: ");
                 scanf("%s", password);
-                if (authenticateUser(userTable, username, password)) {
-                    printf("Login successful! Press any key to continue...");
+                
+                // Use session-based login with device binding
+                if (loginUserWithSession(userTable, username, password)) {
+                    printf("Login successful! Session created.\n");
+                    printf("Press any key to continue...");
                     *isAuthenticated = 1;
                     strcpy(activeUser, username);
                 }
                 else {
-                    printf("Login failed! Invalid credentials. Press any key to return...");
+                    printf("Login failed! Invalid credentials or session error.\n");
+                    printf("Press any key to return...");
                 }
+                
+                // Securely wipe password from memory
+                memset(password, 0, sizeof(password));
                 getch();
             }
             else if (strcmp(authMenu->items[selectedIndex], "Register") == 0) {
@@ -189,6 +197,7 @@ void navigateUserAuthentication(Menu* authMenu, HashTable* userTable, int* isAut
             else if (strcmp(authMenu->items[selectedIndex], "Exit") == 0) {
                 CLEAR_SCREEN();
                 printf("Exiting program...\n");
+                logoutUserSession();
                 saveUsersToFile(userTable, "users.dat");
                 freeHashTable(userTable);
                 exit(0);
@@ -959,11 +968,12 @@ void navigateMainMenu(Menu * mainMenu, HashTable * userTable, int* isAuthenticat
                 navigateAdaptationMenu(mainMenu->subMenus[4], petList);
             }
             else if (strcmp(mainMenu->items[selectedIndex], "About") == 0) {
-                aboutMenu("This is our about section \n Mustafa , Ali Ufuktan , Omer Faruk and me (Onur) did this project ");
+                aboutMenu("This is our about section \n Mustafa , Ali Ufuktan and Onur did this project ");
             }
             else if (strcmp(mainMenu->items[selectedIndex], "Exit") == 0) {
                 CLEAR_SCREEN();
                 printf("Exiting program...\n");
+                logoutUserSession();
                 savePetsToFile(petList, "pets.dat");
                 saveUsersToFile(userTable, "users.dat");
                 saveAppointmentsToFile();
@@ -982,6 +992,10 @@ void navigateMainMenu(Menu * mainMenu, HashTable * userTable, int* isAuthenticat
  * @return 0 on successful execution.
  */
 int main() {
+    // Initialize security features at startup
+    printf("Initializing PetCare security features...\n");
+    init_petcare_session();
+    
     feedingQueue = createQueue();
     medicineQueue = createQueue();
 
