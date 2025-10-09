@@ -56,11 +56,11 @@ python3 -m coverxygen --xml-dir ./docs/doxygentestlinux/xml --src-dir ./ --forma
 
 
 echo "Run Documentation Coverage Report Generator for Library"
-reportgenerator "-title:Calculator Library Documentation Coverage Report (Linux)" "-reports:**/lcov_doxygen_lib_linux.info" "-targetdir:docs/coverxygenliblinux" "-reporttypes:Html" "-filefilters:-*.md;-*.xml;-*[generated];-*build*" "-historydir:report_doc_lib_hist_linux"
+reportgenerator "-title:petcare Library Documentation Coverage Report (Linux)" "-reports:**/lcov_doxygen_lib_linux.info" "-targetdir:docs/coverxygenliblinux" "-reporttypes:Html" "-filefilters:-*.md;-*.xml;-*[generated];-*build*" "-historydir:report_doc_lib_hist_linux"
 reportgenerator "-reports:**/lcov_doxygen_lib_linux.info" "-targetdir:assets/doccoverageliblinux" "-reporttypes:Badges" "-filefilters:-*.md;-*.xml;-*[generated];-*build*"
 
 echo "Run Documentation Coverage Report Generator for Unit Tests"
-reportgenerator "-title:Calculator Library Test Documentation Coverage Report (Linux)" "-reports:**/lcov_doxygen_test_linux.info" "-targetdir:docs/coverxygentestlinux" "-reporttypes:Html" "-filefilters:-*.md;-*.xml;-*[generated];-*build*" "-historydir:report_doc_test_hist_linux"
+reportgenerator "-title:petcare Library Test Documentation Coverage Report (Linux)" "-reports:**/lcov_doxygen_test_linux.info" "-targetdir:docs/coverxygentestlinux" "-reporttypes:Html" "-filefilters:-*.md;-*.xml;-*[generated];-*build*" "-historydir:report_doc_test_hist_linux"
 reportgenerator "-reports:**/lcov_doxygen_test_linux.info" "-targetdir:assets/doccoveragetestlinux" "-reporttypes:Badges" "-filefilters:-*.md;-*.xml;-*[generated];-*build*"
 
 
@@ -90,13 +90,16 @@ lcov --rc lcov_branch_coverage=1 --capture --initial --directory . --output-file
 lcov --rc lcov_branch_coverage=1 --capture --directory . --output-file coverage_linux.info
 lcov --rc lcov_branch_coverage=1 --remove coverage_linux.info '/usr/*' --output-file coverage_linux.info
 lcov --rc lcov_branch_coverage=1 --remove coverage_linux.info 'tests/*' --output-file coverage_linux.info
+lcov --rc lcov_branch_coverage=1 --remove coverage_linux.info '*gtest*' --output-file coverage_linux.info
+lcov --rc lcov_branch_coverage=1 --remove coverage_linux.info '*petcareapp*' --output-file coverage_linux.info
 lcov --rc lcov_branch_coverage=1 --list coverage_linux.info
 
 echo "Generate Test Report"
-reportgenerator "-title:Calculator Library Unit Test Coverage Report (Linux)" "-reports:**/coverage_linux.info" "-targetdir:docs/coveragereportliblinux" "-reporttypes:Html" 
+reportgenerator "-title:petcare Library Unit Test Coverage Report (Linux)" "-reports:**/coverage_linux.info" "-targetdir:docs/coveragereportliblinux" "-reporttypes:Html" 
 
 "-sourcedirs:src/utility/src;src/utility/header;src/petcare/src;src/petcare/header;src/petcareapp/src;src/petcareapp/header;src/tests/utility;src/tests/petcare" "-filefilters:-*minkernel\*;-*gtest*;-*a\_work\*;-*gtest-*;-*gtest.cc;-*gtest.h;-*build*" "-historydir:report_test_hist_linux"
-reportgenerator "-reports:**/coverage_linux.info" "-targetdir:assets/codecoverageliblinux" "-reporttypes:Badges" "-sourcedirs:src/utility/src;src/utility/header;src/petcare/src;src/petcare/header;src/petcareapp/src;src/petcareapp/header;src/tests/utility;src/tests/petcare" "-filefilters:-*minkernel\*;-*gtest*;-*a\_work\*;-*gtest-*;-*gtest.cc;-*gtest.h;-*build*"
+reportgenerator "-reports:**/coverage_linux.info" "-targetdir:assets/codecoverageliblinux" "-reporttypes:Badges" "-sourcedirs:src/utility/src;src/utility/header;src/petcare/src;src/petcare/header;src/petcareapp/src;src/petcareapp/header;src/tests/utility;src/tests/petcare" "-filefilters:-*minkernel\*;-*gtest*;-*a_work\*;-*gtest-*;-*gtest.cc;-*gtest.h;-*build*"
+
 
 echo "Copy the 'assets' folder and its contents to 'docs' recursively"
 cp -R assets "docs/assets"

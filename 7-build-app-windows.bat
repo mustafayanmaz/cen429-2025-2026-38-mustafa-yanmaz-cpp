@@ -55,11 +55,11 @@ rem echo Run lcov genhtml
 rem call perl C:\ProgramData\chocolatey\lib\lcov\tools\bin\genhtml --legend --title "Documentation Coverage Report" ./docs/coverxygen/lcov.info -o docs/coverxygen
 
 echo Run Documentation Coverage Report Generator for Library 
-call reportgenerator "-title:Calculator Library Documentation Coverage Report (Windows)" "-reports:**/lcov_doxygen_lib_win.info" "-targetdir:docs/coverxygenlibwin" "-reporttypes:Html" "-filefilters:-*.md;-*.xml;-*[generated];-*build*" "-historydir:report_doc_lib_hist_win"
+call reportgenerator "-title:petcare Library Documentation Coverage Report (Windows)" "-reports:**/lcov_doxygen_lib_win.info" "-targetdir:docs/coverxygenlibwin" "-reporttypes:Html" "-filefilters:-*.md;-*.xml;-*[generated];-*build*" "-historydir:report_doc_lib_hist_win"
 call reportgenerator "-reports:**/lcov_doxygen_lib_win.info" "-targetdir:assets/doccoveragelibwin" "-reporttypes:Badges" "-filefilters:-*.md;-*.xml;-*[generated];-*build*"
 
 echo Run Documentation Coverage Report Generator for Unit Tests 
-call reportgenerator "-title:Calculator Library Test Documentation Coverage Report (Windows)" "-reports:**/lcov_doxygen_test_win.info" "-targetdir:docs/coverxygentestwin" "-reporttypes:Html" "-filefilters:-*.md;-*.xml;-*[generated];-*build*" "-historydir:report_doc_test_hist_win"
+call reportgenerator "-title:petcare Library Test Documentation Coverage Report (Windows)" "-reports:**/lcov_doxygen_test_win.info" "-targetdir:docs/coverxygentestwin" "-reporttypes:Html" "-filefilters:-*.md;-*.xml;-*[generated];-*build*" "-historydir:report_doc_test_hist_win"
 call reportgenerator "-reports:**/lcov_doxygen_test_win.info" "-targetdir:assets/doccoveragetestwin" "-reporttypes:Badges" "-filefilters:-*.md;-*.xml;-*[generated];-*build*"
 
 echo Testing Application with Coverage
@@ -83,15 +83,15 @@ cd ..
 echo Generate Test Coverage Data for Utility
 call OpenCppCoverage.exe --export_type=binary:utility_tests_unit_win.cov --sources src\utility\src --sources src\utility\header --sources src\tests\utility -- build_win\build\Debug\utility_tests.exe
 
-echo Generate Test Coverage Data for Calculator
+echo Generate Test Coverage Data for petcare
 call OpenCppCoverage.exe --export_type=binary:petcare_tests_unit_win.cov --sources src\petcare\src --sources src\petcare\header --sources src\tests\petcare -- build_win\build\Debug\petcare_tests.exe
 
-echo Generate Test Coverage Data for Calculator App and Combine Results
-call OpenCppCoverage.exe --input_coverage=utility_tests_unit_win.cov --input_coverage=petcare_tests_unit_win.cov --export_type=cobertura:petcareapp_unit_win_cobertura.xml --sources src\utility\src --sources src\utility\header --sources src\petcare\src --sources src\petcare\header --sources src\petcareapp\src --sources src\petcareapp\header --sources src\tests\utility --sources src\tests\petcare -- build_win\build\Debug\petcareapp.exe
+echo Generate Test Coverage Data for petcare App and Combine Results
+call OpenCppCoverage.exe --input_coverage=utility_tests_unit_win.cov --input_coverage=petcare_tests_unit_win.cov --export_type=cobertura:petcareapp_unit_win_cobertura.xml --sources src\utility\src --sources src\utility\header --sources src\petcare\src --sources src\petcare\header --sources src\petcareapp\src --sources src\petcareapp\header --sources src\tests\utility --sources src\tests\petcare --excluded_sources="*petcareapp.cpp*" -- build_win\build\Debug\petcareapp.exe
 
 echo Generate Unit Test Coverage Report
-call reportgenerator "-title:Calculator Library Unit Test Coverage Report (Windows)" "-targetdir:docs/coveragereportlibwin" "-reporttypes:Html" "-reports:**/petcareapp_unit_win_cobertura.xml" "-sourcedirs:src/utility/src;src/utility/header;src/petcare/src;src/petcare/header;src/petcareapp/src;src/petcareapp/header;src/tests/utility;src/tests/petcare" "-filefilters:-*minkernel\*;-*gtest*;-*a\_work\*;-*gtest-*;-*gtest.cc;-*gtest.h;-*build*" "-historydir:report_test_hist_win"
-call reportgenerator "-targetdir:assets/codecoveragelibwin" "-reporttypes:Badges" "-reports:**/petcareapp_unit_win_cobertura.xml" "-sourcedirs:src/utility/src;src/utility/header;src/petcare/src;src/petcare/header;src/petcareapp/src;src/petcareapp/header;src/tests/utility;src/tests/petcare" "-filefilters:-*minkernel\*;-*gtest*;-*a\_work\*;-*gtest-*;-*gtest.cc;-*gtest.h;-*build*"
+call reportgenerator "-title:petcare Library Unit Test Coverage Report (Windows)" "-targetdir:docs/coveragereportlibwin" "-reporttypes:Html" "-reports:**/petcareapp_unit_win_cobertura.xml" "-sourcedirs:src/utility/src;src/utility/header;src/petcare/src;src/petcare/header;src/petcareapp/src;src/petcareapp/header;src/tests/utility;src/tests/petcare" "-filefilters:-*minkernel\*;-*gtest*;-*a\_work\*;-*gtest-*;-*gtest.cc;-*gtest.h;-*build*;-*petcaretest.cpp*;-*petcareapp.cpp*" "-historydir:report_test_hist_win"
+call reportgenerator "-targetdir:assets/codecoveragelibwin" "-reporttypes:Badges" "-reports:**/petcareapp_unit_win_cobertura.xml" "-sourcedirs:src/utility/src;src/utility/header;src/petcare/src;src/petcare/header;src/petcareapp/src;src/petcareapp/header;src/tests/utility;src/tests/petcare" "-filefilters:-*minkernel\*;-*gtest*;-*a\_work\*;-*gtest-*;-*gtest.cc;-*gtest.h;-*build*;-*petcaretest.cpp*;-*petcareapp.cpp*"echo Copy the "assets" folder and its contents to "docs" recursively
 
 echo Copy the "assets" folder and its contents to "docs" recursively
 call robocopy assets "docs\assets" /E

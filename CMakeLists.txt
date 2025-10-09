@@ -40,18 +40,18 @@ set(CRYPTOPP_BUILD_SHARED OFF)
 set(CRYPTOPP_USE_MASTER_BRANCH FALSE)
 
 option(ENABLE_UTILITY "Enable Utility Module" ON)
-option(ENABLE_PETCARE "Enable Calculator Module" ON)
-option(ENABLE_PETCARE_APP "Enable Calculator Application" ON)
+option(ENABLE_petcare "Enable petcare Module" ON)
+option(ENABLE_petcare_APP "Enable petcare Application" ON)
 option(ENABLE_TESTS "Enable All Tests" ON)
 
 # Configure tests
 add_compile_definitions(ENABLE_UTILITY_TEST)
-add_compile_definitions(ENABLE_PETCARE_TEST)
+add_compile_definitions(ENABLE_petcare_TEST)
 
 
 # Configure logs
 add_compile_definitions(ENABLE_UTILITY_LOGGER)
-add_compile_definitions(ENABLE_PETCARE_LOGGER)
+add_compile_definitions(ENABLE_petcare_LOGGER)
 
 # Set the output directories for Debug and Release configurations
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/build/Debug)
@@ -101,12 +101,12 @@ if(ENABLE_UTILITY)
 endif()
 
 # Logger submodule
-if(ENABLE_PETCARE)
+if(ENABLE_petcare)
 	add_subdirectory(${ROOT}/petcare)
 endif()
 
 # BigInteger for Crypto submodule
-if(ENABLE_PETCARE_APP)
+if(ENABLE_petcare_APP)
 	add_subdirectory(${ROOT}/petcareapp)
 endif()
 
