@@ -1,5 +1,5 @@
 /**
- * @file secure_memory_test.cc
+ * @file secure_memory_test.cpp
  * @brief Unit tests for secure memory management functions
  */
 
@@ -461,13 +461,5 @@ TEST_F(SecureMemoryTest, WipeNotOptimizedAwayTest) {
     }
     
     free((void*)buffer);
-}
-
-/**
- * @brief Main function for running tests
- */
-int main(int argc, char** argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }
 

@@ -6,6 +6,11 @@
 #include "methods.h"
 #include <stdint.h>
 #include "secureMemory.h"
+#include "whiteboxCrypto.h"
+
+// Default encryption password for file storage
+static const char* FILE_ENCRYPTION_PASSWORD = "PetCare2024SecureStorage!@#";
+
 /**
  * @brief A simple hash function for strings.
  * @param str Input string to be hashed.
@@ -106,11 +111,17 @@ int authenticateUser(HashTable* table, const char* username, const char* passwor
  * @param filename Name of the file where users are saved.
  */
 void saveUsersToFile(HashTable* table, const char* filename) {
-    FILE* file = fopen(filename, "wb");
+    // Create temporary filename for plaintext
+    char temp_filename[256];
+    snprintf(temp_filename, sizeof(temp_filename), "%s.tmp", filename);
+    
+    FILE* file = fopen(temp_filename, "wb");
     if (!file) {
-        perror("Error opening file");return;
+        perror("Error opening file");
+        return;
     }
 
+    // Write data to temporary file
     for (int i = 0; i < HASH_TABLE_SIZE; i++) {
         User* current = table->buckets[i];
         while (current) {
@@ -131,6 +142,18 @@ void saveUsersToFile(HashTable* table, const char* filename) {
     }
 
     fclose(file);
+    
+    // Encrypt the temporary file using Whitebox Cryptography
+    int result = wb_encrypt_file(temp_filename, filename, 
+                                  FILE_ENCRYPTION_PASSWORD, 
+                                  strlen(FILE_ENCRYPTION_PASSWORD));
+    
+    // Remove temporary file
+    remove(temp_filename);
+    
+    if (result != 0) {
+        fprintf(stderr, "Error: Failed to encrypt user data file\n");
+    }
 }
 
 /**
@@ -139,9 +162,32 @@ void saveUsersToFile(HashTable* table, const char* filename) {
  * @param filename Name of the file containing user data.
  */
 void loadUsersFromFile(HashTable* table, const char* filename) {
-    FILE* file = fopen(filename, "rb");
+    // Create temporary filename for decrypted data
+    char temp_filename[256];
+    snprintf(temp_filename, sizeof(temp_filename), "%s.tmp", filename);
+    
+    // Decrypt the file using Whitebox Cryptography
+    int result = wb_decrypt_file(filename, temp_filename,
+                                  FILE_ENCRYPTION_PASSWORD,
+                                  strlen(FILE_ENCRYPTION_PASSWORD));
+    
+    if (result != 0) {
+        // File might not be encrypted (backward compatibility)
+        // Try to read as plaintext
+        FILE* file = fopen(filename, "rb");
+        if (!file) {
+            perror("Error opening file");
+            return;
+        }
+        fclose(file);
+        // Copy filename for reading
+        snprintf(temp_filename, sizeof(temp_filename), "%s", filename);
+    }
+    
+    FILE* file = fopen(temp_filename, "rb");
     if (!file) {
-        perror("Error opening file");
+        perror("Error opening decrypted file");
+        if (result == 0) remove(temp_filename);  // Clean up if we created it
         return;
     }
 
@@ -175,6 +221,11 @@ void loadUsersFromFile(HashTable* table, const char* filename) {
     }
 
     fclose(file);
+    
+    // Remove temporary decrypted file if we created it
+    if (result == 0) {
+        remove(temp_filename);
+    }
 }
 
 /**
@@ -290,11 +341,17 @@ void deletePet(Pet** petList, const char* name, const char* owner) {
  * @param filename Name of the file to save the list.
  */
 void savePetsToFile(Pet* petList, const char* filename) {
-    FILE* file = fopen(filename, "wb");
+    // Create temporary filename for plaintext
+    char temp_filename[256];
+    snprintf(temp_filename, sizeof(temp_filename), "%s.tmp", filename);
+    
+    FILE* file = fopen(temp_filename, "wb");
     if (!file) {
-        perror("Error opening file");return;
+        perror("Error opening file");
+        return;
     }
 
+    // Write data to temporary file
     while (petList) {
         char* encryptedName = encryptPassword(petList->name);
         char* encryptedType = encryptPassword(petList->type);
@@ -323,6 +380,18 @@ void savePetsToFile(Pet* petList, const char* filename) {
     }
 
     fclose(file);
+    
+    // Encrypt the temporary file using Whitebox Cryptography
+    int result = wb_encrypt_file(temp_filename, filename,
+                                  FILE_ENCRYPTION_PASSWORD,
+                                  strlen(FILE_ENCRYPTION_PASSWORD));
+    
+    // Remove temporary file
+    remove(temp_filename);
+    
+    if (result != 0) {
+        fprintf(stderr, "Error: Failed to encrypt pet data file\n");
+    }
 }
 
 /**
@@ -331,9 +400,33 @@ void savePetsToFile(Pet* petList, const char* filename) {
  * @param filename Name of the file to load the list from.
  */
 void loadPetsFromFile(Pet** petList, const char* filename) {
-    FILE* file = fopen(filename, "rb");
+    // Create temporary filename for decrypted data
+    char temp_filename[256];
+    snprintf(temp_filename, sizeof(temp_filename), "%s.tmp", filename);
+    
+    // Decrypt the file using Whitebox Cryptography
+    int result = wb_decrypt_file(filename, temp_filename,
+                                  FILE_ENCRYPTION_PASSWORD,
+                                  strlen(FILE_ENCRYPTION_PASSWORD));
+    
+    if (result != 0) {
+        // File might not be encrypted (backward compatibility)
+        // Try to read as plaintext
+        FILE* file = fopen(filename, "rb");
+        if (!file) {
+            perror("Error opening file");
+            return;
+        }
+        fclose(file);
+        // Copy filename for reading
+        snprintf(temp_filename, sizeof(temp_filename), "%s", filename);
+    }
+    
+    FILE* file = fopen(temp_filename, "rb");
     if (!file) {
-        perror("Error opening file");return;
+        perror("Error opening decrypted file");
+        if (result == 0) remove(temp_filename);  // Clean up if we created it
+        return;
     }
 
     while (1) {
@@ -374,6 +467,11 @@ void loadPetsFromFile(Pet** petList, const char* filename) {
     }
 
     fclose(file);
+    
+    // Remove temporary decrypted file if we created it
+    if (result == 0) {
+        remove(temp_filename);
+    }
 }
 
 /**
