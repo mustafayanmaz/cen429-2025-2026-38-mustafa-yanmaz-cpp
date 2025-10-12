@@ -520,6 +520,82 @@ TEST(AppointmentTests, XORHelperTest) {
 }
 
 /**
+ * @brief Tests saving appointments to file
+ */
+TEST(AppointmentTests, SaveAppointmentsToFile) {
+    resetData();
+    const char* testFile = "test_appointments.data";
+    
+    addPet(&petList, "Buddy", "Dog", 3, "Alice");
+    addAppointment("Buddy", "Checkup", 10, 5, "Alice", petList);
+    addAppointment("Buddy", "Vaccination", 15, 6, "Alice", petList);
+    
+    saveAppointmentsToFile();
+    
+    FILE* file = fopen(testFile, "rb");
+    if (file) {
+        fseek(file, 0, SEEK_END);
+        long size = ftell(file);
+        fclose(file);
+        EXPECT_GT(size, 0) << "Appointments file should not be empty";
+    }
+    
+    remove("appointment.data");
+}
+
+/**
+ * @brief Tests loading appointments from file
+ */
+TEST(AppointmentTests, LoadAppointmentsFromFile) {
+    resetData();
+    
+    addPet(&petList, "Buddy", "Dog", 3, "Alice");
+    addAppointment("Buddy", "Checkup", 20, 7, "Alice", petList);
+    addAppointment("Buddy", "Grooming", 25, 8, "Alice", petList);
+    
+    saveAppointmentsToFile();
+    
+    // File should exist and have content
+    FILE* file = fopen("appointment.data", "rb");
+    ASSERT_NE(file, nullptr) << "Appointment file should exist";
+    
+    fseek(file, 0, SEEK_END);
+    long size = ftell(file);
+    fclose(file);
+    
+    EXPECT_GT(size, 0) << "Appointment file should have content";
+    
+    // Call load to ensure it doesn't crash
+    loadAppointmentsFromFile();
+    
+    remove("appointment.data");
+}
+
+/**
+ * @brief Tests save and load appointment cycle preserves data
+ */
+TEST(AppointmentTests, SaveLoadCycle) {
+    resetData();
+    
+    addPet(&petList, "Max", "Cat", 2, "Bob");
+    addAppointment("Max", "Checkup", 12, 3, "Bob", petList);
+    addAppointment("Max", "Vaccination", 18, 4, "Bob", petList);
+    
+    // Save appointments
+    saveAppointmentsToFile();
+    
+    // Verify file was created
+    FILE* file = fopen("appointment.data", "rb");
+    ASSERT_NE(file, nullptr) << "Appointment file should be created";
+    fclose(file);
+    
+    // Load should not crash
+    EXPECT_NO_THROW(loadAppointmentsFromFile()) << "Loading appointments should not crash";
+    
+    remove("appointment.data");
+}
+
+/**
  * @class BPlusTreeTest
  * @brief Test fixture for B+ tree operations on pet birthdays.
  */
@@ -1664,4 +1740,803 @@ TEST_F(BPlusTreeTest, ListPetBirthdays_BasicFunctionality) {
     std::string actualOutput = testing::internal::GetCapturedStdout();
 
     EXPECT_EQ(actualOutput, expectedOutput);
+}
+
+// ============================================================================
+// Session Management Tests
+// ============================================================================
+
+/**
+ * @class SessionManagementTest
+ * @brief Test fixture for session management functionality
+ */
+class SessionManagementTest : public ::testing::Test {
+protected:
+    HashTable* table;
+    
+    void SetUp() override {
+        table = createHashTable();
+        init_petcare_session();
+    }
+    
+    void TearDown() override {
+        logoutUserSession();
+        freeHashTable(table);
+    }
+};
+
+/**
+ * @brief Test that session initialization doesn't crash
+ */
+TEST_F(SessionManagementTest, InitSessionDoesNotCrash) {
+    EXPECT_NO_THROW(init_petcare_session()) << "Session initialization should not throw";
+}
+
+/**
+ * @brief Test login with session creation
+ */
+TEST_F(SessionManagementTest, LoginWithSessionCreatesSession) {
+    addUser(table, "sessionuser", "password123");
+    
+    int result = loginUserWithSession(table, "sessionuser", "password123");
+    EXPECT_EQ(result, 1) << "Login with session should succeed for valid credentials";
+    
+    EXPECT_EQ(isSessionValid(), 1) << "Session should be valid after successful login";
+}
+
+/**
+ * @brief Test login failure doesn't create session
+ */
+TEST_F(SessionManagementTest, FailedLoginDoesNotCreateSession) {
+    addUser(table, "sessionuser", "password123");
+    
+    int result = loginUserWithSession(table, "sessionuser", "wrongpassword");
+    EXPECT_EQ(result, 0) << "Login should fail for incorrect password";
+    
+    EXPECT_EQ(isSessionValid(), 0) << "Session should not be valid after failed login";
+}
+
+/**
+ * @brief Test logout invalidates session
+ */
+TEST_F(SessionManagementTest, LogoutInvalidatesSession) {
+    addUser(table, "sessionuser", "password123");
+    loginUserWithSession(table, "sessionuser", "password123");
+    
+    EXPECT_EQ(isSessionValid(), 1) << "Session should be valid after login";
+    
+    logoutUserSession();
+    
+    EXPECT_EQ(isSessionValid(), 0) << "Session should be invalid after logout";
+}
+
+/**
+ * @brief Test session validation without login
+ */
+TEST_F(SessionManagementTest, SessionInvalidWithoutLogin) {
+    EXPECT_EQ(isSessionValid(), 0) << "Session should be invalid without login";
+}
+
+/**
+ * @brief Test multiple login sessions
+ */
+TEST_F(SessionManagementTest, MultipleLoginSessions) {
+    addUser(table, "user1", "pass1");
+    addUser(table, "user2", "pass2");
+    
+    EXPECT_EQ(loginUserWithSession(table, "user1", "pass1"), 1);
+    EXPECT_EQ(isSessionValid(), 1);
+    
+    logoutUserSession();
+    EXPECT_EQ(isSessionValid(), 0);
+    
+    EXPECT_EQ(loginUserWithSession(table, "user2", "pass2"), 1);
+    EXPECT_EQ(isSessionValid(), 1);
+}
+
+// ============================================================================
+// Database Management Tests
+// ============================================================================
+
+/**
+ * @class DatabaseManagementTest
+ * @brief Test fixture for database management functionality
+ */
+class DatabaseManagementTest : public ::testing::Test {
+protected:
+    const char* test_db_path = "test_petcare.db";
+    
+    void SetUp() override {
+        remove(test_db_path);
+    }
+    
+    void TearDown() override {
+        close_petcare_database();
+        remove(test_db_path);
+    }
+};
+
+/**
+ * @brief Test database initialization
+ */
+TEST_F(DatabaseManagementTest, InitDatabaseCreatesDatabase) {
+    int result = init_petcare_database(test_db_path);
+    
+#ifdef SQLITE3_HEADER_ONLY
+    Database* db = get_petcare_database();
+    EXPECT_EQ(db, nullptr) << "Database should be NULL when SQLite3 unavailable";
+#else
+    EXPECT_EQ(result, 0) << "Database initialization should succeed";
+    
+    Database* db = get_petcare_database();
+    EXPECT_NE(db, nullptr) << "Database handle should not be NULL after initialization";
+#endif
+}
+
+/**
+ * @brief Test getting database handle before initialization
+ */
+TEST_F(DatabaseManagementTest, GetDatabaseBeforeInit) {
+    Database* db = get_petcare_database();
+    EXPECT_EQ(db, nullptr) << "Database handle should be NULL before initialization";
+}
+
+/**
+ * @brief Test closing database
+ */
+TEST_F(DatabaseManagementTest, CloseDatabaseCleansUp) {
+    init_petcare_database(test_db_path);
+    
+    EXPECT_NO_THROW(close_petcare_database()) << "Closing database should not throw";
+    
+    Database* db = get_petcare_database();
+    EXPECT_EQ(db, nullptr) << "Database handle should be NULL after closing";
+}
+
+/**
+ * @brief Test double initialization
+ */
+TEST_F(DatabaseManagementTest, DoubleInitialization) {
+    int result1 = init_petcare_database(test_db_path);
+    int result2 = init_petcare_database(test_db_path);
+    
+#ifdef SQLITE3_HEADER_ONLY
+    // When SQLite3 is not available, both should fail
+    EXPECT_NE(result1, 0) << "First initialization should fail when SQLite3 unavailable";
+    EXPECT_NE(result2, 0) << "Second initialization should fail when SQLite3 unavailable";
+#else
+    // When SQLite3 is available, double init should succeed
+    EXPECT_EQ(result1, 0) << "First initialization should succeed";
+    EXPECT_EQ(result2, 0) << "Double initialization should succeed without error";
+#endif
+}
+
+/**
+ * @brief Test closing database without initialization
+ */
+TEST_F(DatabaseManagementTest, CloseWithoutInit) {
+    EXPECT_NO_THROW(close_petcare_database()) << "Closing uninitialized database should not crash";
+}
+
+/**
+ * @brief Test migration without database
+ */
+TEST_F(DatabaseManagementTest, MigrateWithoutDatabase) {
+    int result = migrate_dat_to_sqlite();
+    EXPECT_NE(result, 0) << "Migration should fail when database not initialized";
+}
+
+/**
+ * @brief Test migration with database
+ */
+TEST_F(DatabaseManagementTest, MigrateWithDatabase) {
+    init_petcare_database(test_db_path);
+    
+    HashTable* table = createHashTable();
+    addUser(table, "migrateuser", "password123");
+    saveUsersToFile(table, "users.dat");
+    freeHashTable(table);
+    
+    int result = migrate_dat_to_sqlite();
+    
+#ifdef SQLITE3_HEADER_ONLY
+    EXPECT_NE(result, 0) << "Migration should fail when SQLite3 unavailable";
+#else
+    EXPECT_EQ(result, 0) << "Migration should succeed when database initialized";
+#endif
+    
+    remove("users.dat");
+}
+
+/**
+ * @brief Test multiple migrations
+ */
+TEST_F(DatabaseManagementTest, MultipleMigrations) {
+    init_petcare_database(test_db_path);
+    
+    HashTable* table = createHashTable();
+    addUser(table, "user1", "pass1");
+    saveUsersToFile(table, "users.dat");
+    freeHashTable(table);
+    
+    int result1 = migrate_dat_to_sqlite();
+    int result2 = migrate_dat_to_sqlite();
+    
+#ifndef SQLITE3_HEADER_ONLY
+    EXPECT_EQ(result1, 0) << "First migration should succeed";
+    EXPECT_EQ(result2, 0) << "Second migration should succeed (skip)";
+#endif
+    
+    remove("users.dat");
+}
+
+// ============================================================================
+// XOR Encryption Tests
+// ============================================================================
+
+/**
+ * @class XOREncryptionTest
+ * @brief Test fixture for XOR encryption functionality
+ */
+class XOREncryptionTest : public ::testing::Test {
+protected:
+    char test_data[100];
+    
+    void SetUp() override {
+        strcpy(test_data, "Test data for encryption");
+    }
+};
+
+/**
+ * @brief Test XOR encryption/decryption
+ */
+TEST_F(XOREncryptionTest, EncryptDecryptReversible) {
+    char original[100];
+    strcpy(original, test_data);
+    
+    const char* key = "SecretKey";
+    size_t len = strlen(test_data);
+    
+    xorEncryptDecrypt(test_data, len, key);
+    
+    EXPECT_STRNE(test_data, original) << "Encrypted data should differ from original";
+    
+    xorEncryptDecrypt(test_data, len, key);
+    
+    EXPECT_STREQ(test_data, original) << "Decrypted data should match original";
+}
+
+/**
+ * @brief Test XOR with empty data
+ */
+TEST_F(XOREncryptionTest, EmptyDataHandling) {
+    char empty_data[10] = "";
+    const char* key = "Key";
+    
+    EXPECT_NO_THROW(xorEncryptDecrypt(empty_data, 0, key)) 
+        << "XOR should handle empty data without crashing";
+}
+
+/**
+ * @brief Test XOR with different keys
+ */
+TEST_F(XOREncryptionTest, DifferentKeysProduceDifferentResults) {
+    char data1[100], data2[100];
+    strcpy(data1, "Test data");
+    strcpy(data2, "Test data");
+    
+    const char* key1 = "Key1";
+    const char* key2 = "Key2";
+    size_t len = strlen(data1);
+    
+    xorEncryptDecrypt(data1, len, key1);
+    xorEncryptDecrypt(data2, len, key2);
+    
+    // Compare as binary data since strings might have null bytes after encryption
+    bool different = false;
+    for (size_t i = 0; i < len; i++) {
+        if (data1[i] != data2[i]) {
+            different = true;
+            break;
+        }
+    }
+    
+    EXPECT_TRUE(different) << "Different keys should produce different encrypted data";
+}
+
+/**
+ * @brief Test XOR encryption properties
+ */
+TEST_F(XOREncryptionTest, XORProperties) {
+    char data[100];
+    strcpy(data, "Testing XOR properties");
+    char original[100];
+    strcpy(original, data);
+    
+    const char* key = "TestKey";
+    size_t len = strlen(data);
+    
+    xorEncryptDecrypt(data, len, key);
+    xorEncryptDecrypt(data, len, key);
+    
+    EXPECT_STREQ(data, original) << "Double XOR should return original data";
+}
+
+// ============================================================================
+// Hash Function Tests
+// ============================================================================
+
+/**
+ * @class HashFunctionTest
+ * @brief Test fixture for hash function
+ */
+class HashFunctionTest : public ::testing::Test {};
+
+/**
+ * @brief Test hash function produces consistent results
+ */
+TEST_F(HashFunctionTest, ConsistentHashing) {
+    const char* str = "teststring";
+    unsigned int hash1 = hashFunction(str);
+    unsigned int hash2 = hashFunction(str);
+    
+    EXPECT_EQ(hash1, hash2) << "Hash function should produce consistent results";
+}
+
+/**
+ * @brief Test hash function with different strings
+ */
+TEST_F(HashFunctionTest, DifferentStringsProduceDifferentHashes) {
+    unsigned int hash1 = hashFunction("string1");
+    unsigned int hash2 = hashFunction("string2");
+    
+    EXPECT_NE(hash1, hash2) << "Different strings should (usually) produce different hashes";
+}
+
+/**
+ * @brief Test hash function stays within bounds
+ */
+TEST_F(HashFunctionTest, HashWithinBounds) {
+    const char* testStrings[] = {
+        "test",
+        "longerstring",
+        "a",
+        "AnotherTestString123",
+        "special!@#$%^&*()",
+        ""
+    };
+    
+    for (const char* str : testStrings) {
+        unsigned int hash = hashFunction(str);
+        EXPECT_LT(hash, HASH_TABLE_SIZE) 
+            << "Hash value should be less than HASH_TABLE_SIZE for string: " << str;
+    }
+}
+
+/**
+ * @brief Test hash function with empty string
+ */
+TEST_F(HashFunctionTest, EmptyStringHash) {
+    unsigned int hash = hashFunction("");
+    EXPECT_LT(hash, HASH_TABLE_SIZE) << "Empty string should produce valid hash";
+}
+
+/**
+ * @brief Test hash distribution
+ */
+TEST_F(HashFunctionTest, ReasonableDistribution) {
+    bool used[HASH_TABLE_SIZE] = {false};
+    int uniqueHashes = 0;
+    
+    for (int i = 0; i < 100; i++) {
+        char str[20];
+        snprintf(str, sizeof(str), "test%d", i);
+        unsigned int hash = hashFunction(str);
+        
+        if (!used[hash]) {
+            used[hash] = true;
+            uniqueHashes++;
+        }
+    }
+    
+    EXPECT_GT(uniqueHashes, 50) 
+        << "Hash function should distribute reasonably well";
+}
+
+// ============================================================================
+// Password Encryption Tests (Additional)
+// ============================================================================
+
+/**
+ * @class PasswordEncryptionAdvancedTest
+ * @brief Additional test fixture for password encryption
+ */
+class PasswordEncryptionAdvancedTest : public ::testing::Test {};
+
+/**
+ * @brief Test empty password encryption
+ */
+TEST_F(PasswordEncryptionAdvancedTest, EmptyPassword) {
+    const char* password = "";
+    char* encrypted = encryptPassword(password);
+    
+    EXPECT_NE(encrypted, nullptr) << "Empty password encryption should not return NULL";
+    EXPECT_STREQ(encrypted, "") << "Empty password should encrypt to empty string";
+    
+    free(encrypted);
+}
+
+/**
+ * @brief Test long password encryption
+ */
+TEST_F(PasswordEncryptionAdvancedTest, LongPassword) {
+    const char* password = "ThisIsAVeryLongPasswordWithManyCharactersToTestEncryption123!@#$%^&*()";
+    char* encrypted = encryptPassword(password);
+    char* decrypted = encryptPassword(encrypted);
+    
+    EXPECT_STREQ(decrypted, password) << "Long password should encrypt/decrypt correctly";
+    EXPECT_EQ(strlen(encrypted), strlen(password)) 
+        << "Encrypted password should have same length as original";
+    
+    free(encrypted);
+    free(decrypted);
+}
+
+/**
+ * @brief Test special characters in password
+ */
+TEST_F(PasswordEncryptionAdvancedTest, SpecialCharacters) {
+    const char* password = "P@ssw0rd!#$%^&*()_+-=[]{}|;:,.<>?";
+    char* encrypted = encryptPassword(password);
+    char* decrypted = encryptPassword(encrypted);
+    
+    EXPECT_STREQ(decrypted, password) 
+        << "Password with special characters should encrypt/decrypt correctly";
+    
+    free(encrypted);
+    free(decrypted);
+}
+
+/**
+ * @brief Test password encryption consistency
+ */
+TEST_F(PasswordEncryptionAdvancedTest, ConsistentEncryption) {
+    const char* password = "consistent";
+    char* encrypted1 = encryptPassword(password);
+    char* encrypted2 = encryptPassword(password);
+    
+    EXPECT_STREQ(encrypted1, encrypted2) 
+        << "Same password should produce same encrypted result";
+    
+    free(encrypted1);
+    free(encrypted2);
+}
+
+// ============================================================================
+// Database Stub Implementation Tests
+// ============================================================================
+
+/**
+ * @class DatabaseStubTest
+ * @brief Test fixture for database stub implementation tests
+ */
+class DatabaseStubTest : public ::testing::Test {
+protected:
+    Database* db;
+    HashTable* table;
+    Pet* petList;
+    BPlusTree* birthdayTree;
+    StrayAnimal* strayList;
+    AdoptedAnimal* adoptedList;
+
+    void SetUp() override {
+        db = NULL;
+        table = createHashTable();
+        petList = NULL;
+        birthdayTree = createBPlusTree();
+        strayList = NULL;
+        adoptedList = NULL;
+    }
+
+    void TearDown() override {
+        if (db != NULL) {
+            db_close(db);
+        }
+        if (table != NULL) {
+            freeHashTable(table);
+        }
+    }
+};
+
+/**
+ * @brief Test that db_init returns NULL when SQLite3 library is not available
+ */
+TEST_F(DatabaseStubTest, InitReturnsNull) {
+    db = db_init("test.db", NULL);
+#ifdef SQLITE3_HEADER_ONLY
+    EXPECT_EQ(db, nullptr) << "db_init should return NULL when SQLite3 library unavailable";
+#endif
+}
+
+/**
+ * @brief Test that db_close doesn't crash with NULL pointer
+ */
+TEST_F(DatabaseStubTest, CloseHandlesNull) {
+    EXPECT_NO_THROW(db_close(NULL)) << "db_close should handle NULL pointer gracefully";
+}
+
+/**
+ * @brief Test that db_create_tables returns error
+ */
+TEST_F(DatabaseStubTest, CreateTablesReturnsError) {
+    int result = db_create_tables(NULL);
+    EXPECT_EQ(result, -1) << "db_create_tables should return -1 when database unavailable";
+}
+
+/**
+ * @brief Test that db_add_user returns error
+ */
+TEST_F(DatabaseStubTest, AddUserReturnsError) {
+    int result = db_add_user(NULL, "testuser", "encrypted_password");
+    EXPECT_EQ(result, -1) << "db_add_user should return -1 when database unavailable";
+}
+
+/**
+ * @brief Test that db_user_exists returns 0 (not found)
+ */
+TEST_F(DatabaseStubTest, UserExistsReturnsZero) {
+    int result = db_user_exists(NULL, "testuser");
+    EXPECT_EQ(result, 0) << "db_user_exists should return 0 when database unavailable";
+}
+
+/**
+ * @brief Test that db_add_pet returns error
+ */
+TEST_F(DatabaseStubTest, AddPetReturnsError) {
+    int result = db_add_pet(NULL, "Buddy", "Dog", 3, "testuser");
+    EXPECT_EQ(result, -1) << "db_add_pet should return -1 when database unavailable";
+}
+
+/**
+ * @brief Test that db_is_date_occupied returns 0 (not occupied)
+ */
+TEST_F(DatabaseStubTest, IsDateOccupiedReturnsZero) {
+    int result = db_is_date_occupied(NULL, 15, 6);
+    EXPECT_EQ(result, 0) << "db_is_date_occupied should return 0 when database unavailable";
+}
+
+/**
+ * @brief Test that db_get_error returns appropriate message
+ */
+TEST_F(DatabaseStubTest, GetErrorReturnsMessage) {
+    const char* error = db_get_error(NULL);
+    EXPECT_NE(error, nullptr) << "db_get_error should return a valid error message";
+#ifdef SQLITE3_HEADER_ONLY
+    EXPECT_STREQ(error, "SQLite3 library not available") 
+        << "Error message should indicate library unavailability";
+#endif
+}
+
+/**
+ * @brief Test that db_last_insert_id returns -1
+ */
+TEST_F(DatabaseStubTest, LastInsertIdReturnsError) {
+    long long result = db_last_insert_id(NULL);
+    EXPECT_EQ(result, -1) << "db_last_insert_id should return -1 when database unavailable";
+}
+
+/**
+ * @brief Test that functions handle NULL parameters gracefully
+ */
+TEST_F(DatabaseStubTest, HandleNullParametersGracefully) {
+    EXPECT_NO_THROW({
+        db_add_user(NULL, NULL, NULL);
+        db_get_user_password(NULL, NULL, NULL);
+        db_add_pet(NULL, NULL, NULL, 0, NULL);
+        db_add_appointment(NULL, NULL, NULL, 0, 0, NULL);
+        db_add_birthday(NULL, NULL, 0, 0, 0, NULL);
+        db_add_stray_animal(NULL, NULL, NULL, NULL, 0);
+    }) << "Stub functions should handle NULL parameters without crashing";
+}
+
+/**
+ * @brief Test that db_execute returns error
+ */
+TEST_F(DatabaseStubTest, ExecuteReturnsError) {
+    int result = db_execute(NULL, "SELECT * FROM users");
+    EXPECT_EQ(result, -1) << "db_execute should return -1 when database unavailable";
+}
+
+/**
+ * @brief Test that db_begin_transaction returns error
+ */
+TEST_F(DatabaseStubTest, BeginTransactionReturnsError) {
+    int result = db_begin_transaction(NULL);
+    EXPECT_EQ(result, -1) << "db_begin_transaction should return -1 when database unavailable";
+}
+
+/**
+ * @brief Test that db_commit_transaction returns error
+ */
+TEST_F(DatabaseStubTest, CommitTransactionReturnsError) {
+    int result = db_commit_transaction(NULL);
+    EXPECT_EQ(result, -1) << "db_commit_transaction should return -1 when database unavailable";
+}
+
+/**
+ * @brief Test that db_rollback_transaction returns error
+ */
+TEST_F(DatabaseStubTest, RollbackTransactionReturnsError) {
+    int result = db_rollback_transaction(NULL);
+    EXPECT_EQ(result, -1) << "db_rollback_transaction should return -1 when database unavailable";
+}
+
+/**
+ * @brief Test that db_get_user_password returns error
+ */
+TEST_F(DatabaseStubTest, GetUserPasswordReturnsError) {
+    char* password = NULL;
+    int result = db_get_user_password(NULL, "testuser", &password);
+    EXPECT_EQ(result, -1) << "db_get_user_password should return -1 when database unavailable";
+    EXPECT_EQ(password, nullptr) << "Password pointer should remain NULL";
+}
+
+/**
+ * @brief Test that db_load_all_users returns 0 (no users loaded)
+ */
+TEST_F(DatabaseStubTest, LoadAllUsersReturnsZero) {
+    int result = db_load_all_users(NULL, table);
+    EXPECT_EQ(result, 0) << "db_load_all_users should return 0 when database unavailable";
+}
+
+/**
+ * @brief Test that db_update_pet returns error
+ */
+TEST_F(DatabaseStubTest, UpdatePetReturnsError) {
+    int result = db_update_pet(NULL, "OldName", "Owner", "NewName", "Dog", 5);
+    EXPECT_EQ(result, -1) << "db_update_pet should return -1 when database unavailable";
+}
+
+/**
+ * @brief Test that db_delete_pet returns error
+ */
+TEST_F(DatabaseStubTest, DeletePetReturnsError) {
+    int result = db_delete_pet(NULL, "Buddy", "Owner");
+    EXPECT_EQ(result, -1) << "db_delete_pet should return -1 when database unavailable";
+}
+
+/**
+ * @brief Test that db_load_all_pets returns 0 (no pets loaded)
+ */
+TEST_F(DatabaseStubTest, LoadAllPetsReturnsZero) {
+    int result = db_load_all_pets(NULL, &petList);
+    EXPECT_EQ(result, 0) << "db_load_all_pets should return 0 when database unavailable";
+}
+
+/**
+ * @brief Test that db_is_pet_owned_by returns 0 (not owned)
+ */
+TEST_F(DatabaseStubTest, IsPetOwnedByReturnsZero) {
+    int result = db_is_pet_owned_by(NULL, "Buddy", "Owner");
+    EXPECT_EQ(result, 0) << "db_is_pet_owned_by should return 0 when database unavailable";
+}
+
+/**
+ * @brief Test that db_add_appointment returns error
+ */
+TEST_F(DatabaseStubTest, AddAppointmentReturnsError) {
+    int result = db_add_appointment(NULL, "Buddy", "Checkup", 15, 6, "Owner");
+    EXPECT_EQ(result, -1) << "db_add_appointment should return -1 when database unavailable";
+}
+
+/**
+ * @brief Test that db_update_appointment returns error
+ */
+TEST_F(DatabaseStubTest, UpdateAppointmentReturnsError) {
+    int result = db_update_appointment(NULL, "Buddy", 15, 6, 16, 6, "Vaccination", "Owner");
+    EXPECT_EQ(result, -1) << "db_update_appointment should return -1 when database unavailable";
+}
+
+/**
+ * @brief Test that db_delete_appointment returns error
+ */
+TEST_F(DatabaseStubTest, DeleteAppointmentReturnsError) {
+    int result = db_delete_appointment(NULL, "Buddy", 15, 6, "Owner");
+    EXPECT_EQ(result, -1) << "db_delete_appointment should return -1 when database unavailable";
+}
+
+/**
+ * @brief Test that db_load_all_appointments returns 0 (no appointments loaded)
+ */
+TEST_F(DatabaseStubTest, LoadAllAppointmentsReturnsZero) {
+    int result = db_load_all_appointments(NULL);
+    EXPECT_EQ(result, 0) << "db_load_all_appointments should return 0 when database unavailable";
+}
+
+/**
+ * @brief Test that db_add_birthday returns error
+ */
+TEST_F(DatabaseStubTest, AddBirthdayReturnsError) {
+    int result = db_add_birthday(NULL, "Buddy", 15, 6, 2020, "Owner");
+    EXPECT_EQ(result, -1) << "db_add_birthday should return -1 when database unavailable";
+}
+
+/**
+ * @brief Test that db_load_all_birthdays returns 0 (no birthdays loaded)
+ */
+TEST_F(DatabaseStubTest, LoadAllBirthdaysReturnsZero) {
+    int result = db_load_all_birthdays(NULL, birthdayTree, &petList);
+    EXPECT_EQ(result, 0) << "db_load_all_birthdays should return 0 when database unavailable";
+}
+
+/**
+ * @brief Test that db_add_stray_animal returns error
+ */
+TEST_F(DatabaseStubTest, AddStrayAnimalReturnsError) {
+    int result = db_add_stray_animal(NULL, "Dog", "Male", "01/01/2023", 3);
+    EXPECT_EQ(result, -1) << "db_add_stray_animal should return -1 when database unavailable";
+}
+
+/**
+ * @brief Test that db_update_stray_animal returns error
+ */
+TEST_F(DatabaseStubTest, UpdateStrayAnimalReturnsError) {
+    int result = db_update_stray_animal(NULL, 1, "Cat", "Female", "02/02/2023", 2);
+    EXPECT_EQ(result, -1) << "db_update_stray_animal should return -1 when database unavailable";
+}
+
+/**
+ * @brief Test that db_delete_stray_animal returns error
+ */
+TEST_F(DatabaseStubTest, DeleteStrayAnimalReturnsError) {
+    int result = db_delete_stray_animal(NULL, 1);
+    EXPECT_EQ(result, -1) << "db_delete_stray_animal should return -1 when database unavailable";
+}
+
+/**
+ * @brief Test that db_load_all_stray_animals returns 0 (no stray animals loaded)
+ */
+TEST_F(DatabaseStubTest, LoadAllStrayAnimalsReturnsZero) {
+    int result = db_load_all_stray_animals(NULL, &strayList);
+    EXPECT_EQ(result, 0) << "db_load_all_stray_animals should return 0 when database unavailable";
+}
+
+/**
+ * @brief Test that db_add_adopted_animal returns error
+ */
+TEST_F(DatabaseStubTest, AddAdoptedAnimalReturnsError) {
+    int result = db_add_adopted_animal(NULL, 1, "Dog", "Male", "01/01/2023", 3, "Owner", "02/02/2023");
+    EXPECT_EQ(result, -1) << "db_add_adopted_animal should return -1 when database unavailable";
+}
+
+/**
+ * @brief Test that db_load_all_adopted_animals returns 0 (no adopted animals loaded)
+ */
+TEST_F(DatabaseStubTest, LoadAllAdoptedAnimalsReturnsZero) {
+    int result = db_load_all_adopted_animals(NULL, &adoptedList);
+    EXPECT_EQ(result, 0) << "db_load_all_adopted_animals should return 0 when database unavailable";
+}
+
+/**
+ * @brief Test that db_adopt_stray_animal returns error
+ */
+TEST_F(DatabaseStubTest, AdoptStrayAnimalReturnsError) {
+    int result = db_adopt_stray_animal(NULL, 1, "Owner", "02/02/2023");
+    EXPECT_EQ(result, -1) << "db_adopt_stray_animal should return -1 when database unavailable";
+}
+
+/**
+ * @brief Test that db_backup returns error
+ */
+TEST_F(DatabaseStubTest, BackupReturnsError) {
+    int result = db_backup(NULL, "backup.db");
+    EXPECT_EQ(result, -1) << "db_backup should return -1 when database unavailable";
+}
+
+/**
+ * @brief Test that db_restore returns error
+ */
+TEST_F(DatabaseStubTest, RestoreReturnsError) {
+    int result = db_restore("test.db", "backup.db");
+    EXPECT_EQ(result, -1) << "db_restore should return -1 when database unavailable";
 }

@@ -251,6 +251,14 @@ bool cancelAppointment(const char* petName, int day, int month, const char* owne
 void viewAppointments(int month);
 
 /**
+ * @brief Encrypts or decrypts a data buffer in-place using XOR encryption.
+ * @param data Pointer to the buffer to encrypt/decrypt.
+ * @param len The length of the data buffer in bytes.
+ * @param key A null-terminated C-string used as the XOR key.
+ */
+void xorEncryptDecrypt(char* data, size_t len, const char* key);
+
+/**
  * @brief Saves all appointments to a file.
  */
 void saveAppointmentsToFile();
