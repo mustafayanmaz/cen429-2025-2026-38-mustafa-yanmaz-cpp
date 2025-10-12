@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "database.h"
 
 /**
  * @brief The size of the Hash Table (for user management).
@@ -674,5 +675,38 @@ void logoutUserSession();
  * @return 1 if session is valid, 0 otherwise
  */
 int isSessionValid();
+
+// ============================================================================
+// Database Management Functions
+// ============================================================================
+
+/**
+ * @brief Global database handle
+ */
+extern struct Database* g_petcare_db;
+
+/**
+ * @brief Initialize the PetCare database
+ * @param db_path Path to the database file
+ * @return 0 on success, non-zero on failure
+ */
+int init_petcare_database(const char* db_path);
+
+/**
+ * @brief Close the PetCare database
+ */
+void close_petcare_database();
+
+/**
+ * @brief Get the global database handle
+ * @return Pointer to the global database handle
+ */
+struct Database* get_petcare_database();
+
+/**
+ * @brief Migrate data from .dat files to SQLite database
+ * @return 0 on success, non-zero on failure
+ */
+int migrate_dat_to_sqlite();
 
 #endif

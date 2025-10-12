@@ -8,10 +8,15 @@
 #include "secureMemory.h"
 #include "whiteboxCrypto.h"
 #include "assetProtection.h"
+#include "database.h"
 
 // Obfuscated encryption password for file storage
 static ObfuscatedString g_file_encryption_password;
 static int g_password_initialized = 0;
+
+// Global database handle
+Database* g_petcare_db = NULL;
+static int g_db_initialized = 0;
 
 // Global device fingerprint and session
 static DeviceFingerprint g_device_fingerprint;
@@ -134,11 +139,30 @@ int authenticateUser(HashTable* table, const char* username, const char* passwor
 }
 
 /**
- * @brief Saves all users to a file.
+ * @brief Saves all users to a file (or database).
  * @param table Pointer to the HashTable.
- * @param filename Name of the file where users are saved.
+ * @param filename Name of the file where users are saved (or "database" to use SQLite).
  */
 void saveUsersToFile(HashTable* table, const char* filename) {
+    // If database is initialized and filename is "database", use SQLite
+    if (g_petcare_db && strcmp(filename, "users.dat") == 0) {
+        // Clear existing users in database first
+        db_execute(g_petcare_db, "DELETE FROM users;");
+        
+        // Save all users to database
+        db_begin_transaction(g_petcare_db);
+        for (int i = 0; i < HASH_TABLE_SIZE; i++) {
+            User* current = table->buckets[i];
+            while (current) {
+                db_add_user(g_petcare_db, current->username, current->encryptedPassword);
+                current = current->next;
+            }
+        }
+        db_commit_transaction(g_petcare_db);
+        return;
+    }
+    
+    // Otherwise, use traditional file-based approach
     // Check if table has any users
     int has_users = 0;
     for (int i = 0; i < HASH_TABLE_SIZE; i++) {
@@ -211,11 +235,18 @@ void saveUsersToFile(HashTable* table, const char* filename) {
 }
 
 /**
- * @brief Loads users from a file and populates the HashTable.
+ * @brief Loads users from a file (or database) and populates the HashTable.
  * @param table Pointer to the HashTable.
- * @param filename Name of the file containing user data.
+ * @param filename Name of the file containing user data (or "database" to use SQLite).
  */
 void loadUsersFromFile(HashTable* table, const char* filename) {
+    // If database is initialized and filename is "users.dat", use SQLite
+    if (g_petcare_db && strcmp(filename, "users.dat") == 0) {
+        db_load_all_users(g_petcare_db, table);
+        return;
+    }
+    
+    // Otherwise, use traditional file-based approach
     // Create temporary filename for decrypted data
     char temp_filename[256];
     snprintf(temp_filename, sizeof(temp_filename), "%s.tmp", filename);
@@ -397,11 +428,28 @@ void deletePet(Pet** petList, const char* name, const char* owner) {
 }
 
 /**
- * @brief Saves the pet list to a file.
+ * @brief Saves the pet list to a file (or database).
  * @param petList Pointer to the head of the pet list.
- * @param filename Name of the file to save the list.
+ * @param filename Name of the file to save the list (or "database" to use SQLite).
  */
 void savePetsToFile(Pet* petList, const char* filename) {
+    // If database is initialized and filename is "pets.dat", use SQLite
+    if (g_petcare_db && strcmp(filename, "pets.dat") == 0) {
+        // Clear existing pets in database first
+        db_execute(g_petcare_db, "DELETE FROM pets;");
+        
+        // Save all pets to database
+        db_begin_transaction(g_petcare_db);
+        Pet* current = petList;
+        while (current) {
+            db_add_pet(g_petcare_db, current->name, current->type, current->age, current->owner);
+            current = current->next;
+        }
+        db_commit_transaction(g_petcare_db);
+        return;
+    }
+    
+    // Otherwise, use traditional file-based approach
     // If pet list is empty, create an empty encrypted file
     if (petList == NULL) {
         FILE* file = fopen(filename, "wb");
@@ -473,11 +521,18 @@ void savePetsToFile(Pet* petList, const char* filename) {
 }
 
 /**
- * @brief Loads a pet list from a file.
+ * @brief Loads a pet list from a file (or database).
  * @param petList Pointer to the head of the pet list.
- * @param filename Name of the file to load the list from.
+ * @param filename Name of the file to load the list from (or "database" to use SQLite).
  */
 void loadPetsFromFile(Pet** petList, const char* filename) {
+    // If database is initialized and filename is "pets.dat", use SQLite
+    if (g_petcare_db && strcmp(filename, "pets.dat") == 0) {
+        db_load_all_pets(g_petcare_db, petList);
+        return;
+    }
+    
+    // Otherwise, use traditional file-based approach
     // Create temporary filename for decrypted data
     char temp_filename[256];
     snprintf(temp_filename, sizeof(temp_filename), "%s.tmp", filename);
@@ -985,9 +1040,36 @@ void xorEncryptDecrypt(char* data, size_t len, const char* key) {
 }
 
 /**
- * @brief Saves all appointments to a file.
+ * @brief Saves all appointments to a file (or database).
  */
 void saveAppointmentsToFile() {
+    // If database is initialized, save to SQLite
+    if (g_petcare_db) {
+        // Clear existing appointments in database first
+        db_execute(g_petcare_db, "DELETE FROM appointments;");
+        
+        // Save all appointments to database
+        if (appointmentList != NULL) {
+            db_begin_transaction(g_petcare_db);
+            
+            Appointment* current = appointmentList;
+            Appointment* prev = NULL;
+            Appointment* next;
+            
+            while (current != NULL) {
+                next = XOR(prev, current->xorPtr);
+                db_add_appointment(g_petcare_db, current->petName, current->description,
+                                 current->day, current->month, current->owner);
+                prev = current;
+                current = next;
+            }
+            
+            db_commit_transaction(g_petcare_db);
+        }
+        return;
+    }
+    
+    // Otherwise, use traditional file-based approach
     FILE* file = fopen("appointment.data", "wb");
     if (!file) {
         perror("Error opening file");return;
@@ -1010,9 +1092,55 @@ void saveAppointmentsToFile() {
     fclose(file);}
 
 /**
- * @brief Loads all appointments from a file.
+ * @brief Loads all appointments from a file (or database).
  */
 void loadAppointmentsFromFile() {
+    // If database is initialized, load from SQLite
+    if (g_petcare_db) {
+        // Clear existing appointments in memory
+        appointmentList = NULL;
+        
+#ifndef SQLITE3_HEADER_ONLY
+        // Load appointments from database
+        sqlite3_stmt* stmt;
+        const char* sql = "SELECT pet_name, description, day, month, owner FROM appointments;";
+        
+        int rc = sqlite3_prepare_v2(g_petcare_db->db, sql, -1, &stmt, NULL);
+        if (rc == SQLITE_OK) {
+            Appointment* prev = NULL;
+            
+            while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+                const char* petName = (const char*)sqlite3_column_text(stmt, 0);
+                const char* description = (const char*)sqlite3_column_text(stmt, 1);
+                int day = sqlite3_column_int(stmt, 2);
+                int month = sqlite3_column_int(stmt, 3);
+                const char* owner = (const char*)sqlite3_column_text(stmt, 4);
+                
+                // Create new appointment
+                Appointment* newAppointment = (Appointment*)malloc(sizeof(Appointment));
+                strncpy(newAppointment->petName, petName, sizeof(newAppointment->petName) - 1);
+                strncpy(newAppointment->description, description, sizeof(newAppointment->description) - 1);
+                newAppointment->day = day;
+                newAppointment->month = month;
+                strncpy(newAppointment->owner, owner, sizeof(newAppointment->owner) - 1);
+                newAppointment->xorPtr = XOR(prev, NULL);
+                
+                if (prev != NULL) {
+                    prev->xorPtr = XOR(newAppointment, XOR(prev->xorPtr, NULL));
+                } else {
+                    appointmentList = newAppointment;
+                }
+                
+                prev = newAppointment;
+            }
+            
+            sqlite3_finalize(stmt);
+        }
+#endif // SQLITE3_HEADER_ONLY
+        return;
+    }
+    
+    // Otherwise, use traditional file-based approach
     FILE* file = fopen("appointment.data", "rb");
     if (!file) {
         perror("Error opening file");
@@ -1405,12 +1533,45 @@ bool isPetOwnedByUser(Pet* petList, const char* petName, const char* owner) {
 }
 
 /**
- * @brief Saves the birthdays stored in the B+ Tree to a file.
+ * @brief Saves the birthdays stored in the B+ Tree to a file (or database).
  * @param birthdayTree Pointer to the BPlusTree containing birthdays.
- * @param filename File to save to.
+ * @param filename File to save to (or "database" to use SQLite).
  * @param petList Pointer to the pet list for retrieving pet details.
  */
 void saveBirthdaysToFile(BPlusTree* birthdayTree, const char* filename, Pet* petList) {
+    // If database is initialized and filename contains "birthdays", use SQLite
+    if (g_petcare_db && strstr(filename, "birthdays") != NULL) {
+        // Clear existing birthdays in database first
+        db_execute(g_petcare_db, "DELETE FROM birthdays;");
+        
+        // Save all birthdays to database
+        if (birthdayTree && birthdayTree->root) {
+            db_begin_transaction(g_petcare_db);
+            
+            // Traverse the B+ tree and save each birthday
+            BPlusNode* node = birthdayTree->root;
+            for (int i = 0; i < node->count; i++) {
+                int key = node->keys[i];
+                int encodedDate = node->values[i];
+                
+                // Decode date: YYYYMMDD format
+                int year = encodedDate / 10000;
+                int month = (encodedDate / 100) % 100;
+                int day = encodedDate % 100;
+                
+                // Find pet by key
+                Pet* pet = findPetByName(petList, key);
+                if (pet) {
+                    db_add_birthday(g_petcare_db, pet->name, day, month, year, pet->owner);
+                }
+            }
+            
+            db_commit_transaction(g_petcare_db);
+        }
+        return;
+    }
+    
+    // Otherwise, use traditional file-based approach
     FILE* file = fopen(filename, "wb");
     if (!file) {
         perror("Error opening birthdays file");return;
@@ -1477,12 +1638,19 @@ void saveBPlusTreeToFile(BPlusNode* node, FILE* file, Pet* petList) {
 }
 
 /**
- * @brief Loads birthday data from a file into the B+ Tree.
+ * @brief Loads birthday data from a file (or database) into the B+ Tree.
  * @param birthdayTree Pointer to the BPlusTree to populate.
- * @param filename File to read from.
+ * @param filename File to read from (or "database" to use SQLite).
  * @param petList Pointer to the pet list pointer (pets may also be loaded in this process).
  */
 void loadBirthdaysFromFile(BPlusTree* birthdayTree, const char* filename, Pet** petList) {
+    // If database is initialized and filename contains "birthdays", use SQLite
+    if (g_petcare_db && strstr(filename, "birthdays") != NULL) {
+        db_load_all_birthdays(g_petcare_db, birthdayTree, petList);
+        return;
+    }
+    
+    // Otherwise, use traditional file-based approach
     FILE* file = fopen(filename, "rb");
     if (!file) {
         perror("Error opening birthdays file");return;
@@ -1717,11 +1885,18 @@ bool KMPcontains(const char* text, const char* pattern) {
 }
 
 /**
- * @brief Loads stray animals from a file into the given list.
+ * @brief Loads stray animals from a file (or database) into the given list.
  * @param list Pointer to the pointer of the stray animal list head.
- * @param filename Name of the file to load from.
+ * @param filename Name of the file to load from (or "database" to use SQLite).
  */
 void loadStrayAnimalsFromFile(StrayAnimal** list, const char* filename) {
+    // If database is initialized and filename is "adoptable.dat", use SQLite
+    if (g_petcare_db && strcmp(filename, "adoptable.dat") == 0) {
+        db_load_all_stray_animals(g_petcare_db, list);
+        return;
+    }
+    
+    // Otherwise, use traditional file-based approach
     FILE* file = fopen(filename, "rb");
     if (!file) {return;}
     StrayAnimal temp;
@@ -1747,11 +1922,29 @@ void loadStrayAnimalsFromFile(StrayAnimal** list, const char* filename) {
 }
 
 /**
- * @brief Saves the stray animal list to a file.
+ * @brief Saves the stray animal list to a file (or database).
  * @param list Pointer to the head of the stray animal list.
- * @param filename Name of the file to save to.
+ * @param filename Name of the file to save to (or "database" to use SQLite).
  */
 void saveStrayAnimalsToFile(StrayAnimal* list, const char* filename) {
+    // If database is initialized and filename is "adoptable.dat", use SQLite
+    if (g_petcare_db && strcmp(filename, "adoptable.dat") == 0) {
+        // Clear existing stray animals in database first
+        db_execute(g_petcare_db, "DELETE FROM stray_animals;");
+        
+        // Save all stray animals to database
+        db_begin_transaction(g_petcare_db);
+        StrayAnimal* current = list;
+        while (current) {
+            db_add_stray_animal(g_petcare_db, current->type, current->gender, 
+                               current->arrivalDate, current->age);
+            current = current->next;
+        }
+        db_commit_transaction(g_petcare_db);
+        return;
+    }
+    
+    // Otherwise, use traditional file-based approach
     FILE* file = fopen(filename, "wb");
     if (!file) {
         perror("Error opening adoptable file");return;
@@ -1907,11 +2100,18 @@ void searchStrayAnimalsKMP(StrayAnimal* list, const char* searchKey) {
 }
 
 /**
- * @brief Loads adopted animals from a file into the given list.
+ * @brief Loads adopted animals from a file (or database) into the given list.
  * @param list Pointer to the pointer of the adopted animal list head.
- * @param filename Name of the file to load from.
+ * @param filename Name of the file to load from (or "database" to use SQLite).
  */
 void loadAdoptedAnimalsFromFile(AdoptedAnimal** list, const char* filename) {
+    // If database is initialized and filename is "adopted.dat", use SQLite
+    if (g_petcare_db && strcmp(filename, "adopted.dat") == 0) {
+        db_load_all_adopted_animals(g_petcare_db, list);
+        return;
+    }
+    
+    // Otherwise, use traditional file-based approach
     FILE* file = fopen(filename, "rb");
     if (!file) {
         return;
@@ -1941,11 +2141,30 @@ void loadAdoptedAnimalsFromFile(AdoptedAnimal** list, const char* filename) {
 }
 
 /**
- * @brief Saves the adopted animal list to a file.
+ * @brief Saves the adopted animal list to a file (or database).
  * @param list Pointer to the head of the adopted animal list.
- * @param filename Name of the file to save to.
+ * @param filename Name of the file to save to (or "database" to use SQLite).
  */
 void saveAdoptedAnimalsToFile(AdoptedAnimal* list, const char* filename) {
+    // If database is initialized and filename is "adopted.dat", use SQLite
+    if (g_petcare_db && strcmp(filename, "adopted.dat") == 0) {
+        // Clear existing adopted animals in database first
+        db_execute(g_petcare_db, "DELETE FROM adopted_animals;");
+        
+        // Save all adopted animals to database
+        db_begin_transaction(g_petcare_db);
+        AdoptedAnimal* current = list;
+        while (current) {
+            db_add_adopted_animal(g_petcare_db, current->id, current->type, current->gender,
+                                 current->arrivalDate, current->age, current->owner, 
+                                 current->adoptionDate);
+            current = current->next;
+        }
+        db_commit_transaction(g_petcare_db);
+        return;
+    }
+    
+    // Otherwise, use traditional file-based approach
     FILE* file = fopen(filename, "wb");
     if (!file) {
         perror("Error opening adopted file");return;
@@ -2172,5 +2391,204 @@ int isSessionValid() {
     secure_wipe(session_key, sizeof(session_key));
     
     return (result == 0) ? 1 : 0;
+}
+
+// ============================================================================
+// Database Management Functions
+// ============================================================================
+
+/**
+ * @brief Initialize the PetCare database
+ * @param db_path Path to the database file
+ * @return 0 on success, non-zero on failure
+ */
+int init_petcare_database(const char* db_path) {
+    if (g_db_initialized) {
+        return 0; // Already initialized
+    }
+    
+    // Initialize with encryption key
+    const char* encryption_key = "PetCare2024DatabaseEncryption!@#$";
+    g_petcare_db = db_init(db_path, encryption_key);
+    
+    if (!g_petcare_db) {
+        fprintf(stderr, "Failed to initialize database\n");
+        return -1;
+    }
+    
+    // Create tables
+    if (db_create_tables(g_petcare_db) != 0) {
+        fprintf(stderr, "Failed to create database tables\n");
+        db_close(g_petcare_db);
+        g_petcare_db = NULL;
+        return -1;
+    }
+    
+    g_db_initialized = 1;
+    return 0;
+}
+
+/**
+ * @brief Close the PetCare database
+ */
+void close_petcare_database() {
+    if (g_petcare_db) {
+        db_close(g_petcare_db);
+        g_petcare_db = NULL;
+        g_db_initialized = 0;
+    }
+}
+
+/**
+ * @brief Get the global database handle
+ * @return Pointer to the global database handle
+ */
+Database* get_petcare_database() {
+    return g_petcare_db;
+}
+
+/**
+ * @brief Migrate data from .dat files to SQLite database
+ * @return 0 on success, non-zero on failure
+ */
+int migrate_dat_to_sqlite() {
+    if (!g_petcare_db) {
+        fprintf(stderr, "Database not initialized\n");
+        return -1;
+    }
+    
+    printf("Migrating data from .dat files to SQLite...\n");
+    
+#ifdef SQLITE3_HEADER_ONLY
+    printf("SQLite3 not available - using file-based storage only.\n");
+    return -1;
+#else
+    // Check if migration is needed (check if users table is empty)
+    sqlite3_stmt* stmt;
+    const char* sql = "SELECT COUNT(*) FROM users;";
+    int rc = sqlite3_prepare_v2(g_petcare_db->db, sql, -1, &stmt, NULL);
+    if (rc == SQLITE_OK) {
+        rc = sqlite3_step(stmt);
+        if (rc == SQLITE_ROW) {
+            int count = sqlite3_column_int(stmt, 0);
+            sqlite3_finalize(stmt);
+            if (count > 0) {
+                printf("Database already contains data, skipping migration.\n");
+                return 0;
+            }
+        } else {
+            sqlite3_finalize(stmt);
+        }
+    }
+#endif // SQLITE3_HEADER_ONLY
+    
+    printf("Starting migration...\n");
+    
+    // Begin transaction for faster migration
+    db_begin_transaction(g_petcare_db);
+    
+    // Migrate users from users.dat
+    FILE* users_file = fopen("users.dat", "rb");
+    if (users_file) {
+        printf("Migrating users from users.dat...\n");
+        fclose(users_file);
+        
+        // Load users using old method into temp hash table
+        HashTable* temp_table = createHashTable();
+        loadUsersFromFile(temp_table, "users.dat");
+        
+        // Migrate to database
+        int user_count = 0;
+        for (int i = 0; i < HASH_TABLE_SIZE; i++) {
+            User* current = temp_table->buckets[i];
+            while (current) {
+                if (db_add_user(g_petcare_db, current->username, current->encryptedPassword) == 0) {
+                    user_count++;
+                }
+                current = current->next;
+            }
+        }
+        printf("Migrated %d users\n", user_count);
+        
+        freeHashTable(temp_table);
+    }
+    
+    // Migrate pets from pets.dat
+    FILE* pets_file = fopen("pets.dat", "rb");
+    if (pets_file) {
+        printf("Migrating pets from pets.dat...\n");
+        fclose(pets_file);
+        
+        // Load pets using old method
+        Pet* temp_pets = NULL;
+        loadPetsFromFile(&temp_pets, "pets.dat");
+        
+        // Migrate to database
+        int pet_count = 0;
+        Pet* current = temp_pets;
+        while (current) {
+            if (db_add_pet(g_petcare_db, current->name, current->type, current->age, current->owner) == 0) {
+                pet_count++;
+            }
+            current = current->next;
+        }
+        printf("Migrated %d pets\n", pet_count);
+        
+        freePetList(temp_pets);
+    }
+    
+    // Migrate stray animals from adoptable.dat
+    FILE* stray_file = fopen("adoptable.dat", "rb");
+    if (stray_file) {
+        printf("Migrating stray animals from adoptable.dat...\n");
+        fclose(stray_file);
+        
+        StrayAnimal* temp_strays = NULL;
+        loadStrayAnimalsFromFile(&temp_strays, "adoptable.dat");
+        
+        int stray_count = 0;
+        StrayAnimal* current = temp_strays;
+        while (current) {
+            int id = db_add_stray_animal(g_petcare_db, current->type, current->gender,
+                                         current->arrivalDate, current->age);
+            if (id >= 0) {
+                stray_count++;
+            }
+            StrayAnimal* next = current->next;
+            free(current);
+            current = next;
+        }
+        printf("Migrated %d stray animals\n", stray_count);
+    }
+    
+    // Migrate adopted animals from adopted.dat
+    FILE* adopted_file = fopen("adopted.dat", "rb");
+    if (adopted_file) {
+        printf("Migrating adopted animals from adopted.dat...\n");
+        fclose(adopted_file);
+        
+        AdoptedAnimal* temp_adopted = NULL;
+        loadAdoptedAnimalsFromFile(&temp_adopted, "adopted.dat");
+        
+        int adopted_count = 0;
+        AdoptedAnimal* current = temp_adopted;
+        while (current) {
+            if (db_add_adopted_animal(g_petcare_db, current->id, current->type, current->gender,
+                                      current->arrivalDate, current->age, current->owner,
+                                      current->adoptionDate) == 0) {
+                adopted_count++;
+            }
+            AdoptedAnimal* next = current->next;
+            free(current);
+            current = next;
+        }
+        printf("Migrated %d adopted animals\n", adopted_count);
+    }
+    
+    // Commit transaction
+    db_commit_transaction(g_petcare_db);
+    
+    printf("Migration complete!\n");
+    return 0;
 }
 

@@ -54,10 +54,10 @@ void minHeapify(MinHeap* minHeap, int idx) {
     int left = 2 * idx + 1;
     int right = 2 * idx + 2;
 
-    if (left < minHeap->size && minHeap->array[left]->freq < minHeap->array[smallest]->freq)
+    if ((unsigned)left < minHeap->size && minHeap->array[left]->freq < minHeap->array[smallest]->freq)
         smallest = left;
 
-    if (right < minHeap->size && minHeap->array[right]->freq < minHeap->array[smallest]->freq)
+    if ((unsigned)right < minHeap->size && minHeap->array[right]->freq < minHeap->array[smallest]->freq)
         smallest = right;
 
     if (smallest != idx) {
@@ -189,10 +189,16 @@ void HuffmanCodes(char data[], int freq[], int size, char codes[256][MAX_TREE_HT
  * @param output The output buffer for the compressed string.
  */
 void compress(char* input, char codes[256][MAX_TREE_HT], char* output) {
-    output[0] = '\0';
+    size_t output_pos = 0;
     for (int i = 0; input[i] != '\0'; ++i) {
-        strcat(output, codes[(int)input[i]]);
+        const char* code = codes[(int)input[i]];
+        size_t j = 0;
+        // Manually copy each character from code to output
+        while (code[j] != '\0') {
+            output[output_pos++] = code[j++];
+        }
     }
+    output[output_pos] = '\0';
 }
 
 /**

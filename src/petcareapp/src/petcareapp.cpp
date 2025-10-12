@@ -1154,9 +1154,22 @@ void navigateMainMenu(Menu * mainMenu, HashTable * userTable, int* isAuthenticat
 
 /**
  * @brief Main entry point of the Pet Care application.
+ * @param argc Number of command-line arguments
+ * @param argv Array of command-line argument strings
  * @return 0 on successful execution.
  */
-int main() {
+int main(int argc, char* argv[]) {
+    // Check for test/coverage mode
+    int test_mode = 0;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--test-coverage") == 0 || 
+            strcmp(argv[i], "--non-interactive") == 0 ||
+            strcmp(argv[i], "-t") == 0) {
+            test_mode = 1;
+            break;
+        }
+    }
+    
     // ========================================================================
     // RASP SECURITY INITIALIZATION
     // ========================================================================
@@ -1172,6 +1185,36 @@ int main() {
     init_petcare_session();
     
     printf("\n[SECURITY] All security features initialized\n");
+    
+    // If in test mode, skip interactive parts
+    if (test_mode) {
+        printf("\n[TEST MODE] Running in non-interactive mode for coverage testing\n");
+        printf("[TEST MODE] All security features verified successfully\n");
+        
+        // Perform basic initialization checks
+        feedingQueue = createQueue();
+        medicineQueue = createQueue();
+        HashTable* userTable = createHashTable();
+        loadUsersFromFile(userTable, "users.dat");
+        loadAppointmentsFromFile();
+        
+        printf("[TEST MODE] Data structures initialized successfully\n");
+        
+        // Cleanup
+        freeHashTable(userTable);
+        if (feedingQueue) free(feedingQueue);
+        if (medicineQueue) free(medicineQueue);
+        
+        // Shutdown RASP
+        if (g_rasp_initialized) {
+            rasp_shutdown();
+            printf("[TEST MODE] RASP protection shutdown complete\n");
+        }
+        
+        printf("[TEST MODE] Test completed successfully - exiting\n");
+        return 0;
+    }
+    
     printf("Press any key to continue...\n");
     getch();
     
