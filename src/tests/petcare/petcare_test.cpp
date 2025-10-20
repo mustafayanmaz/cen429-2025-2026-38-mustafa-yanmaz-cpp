@@ -2245,6 +2245,9 @@ protected:
         if (table != NULL) {
             freeHashTable(table);
         }
+        // Clean up any test database files
+        remove("backup.db");
+        remove("test.db");
     }
 };
 

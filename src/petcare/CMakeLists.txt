@@ -41,6 +41,7 @@ else()
     if(WIN32)
         # Common SQLite3 installation paths on Windows
         set(SQLITE3_SEARCH_PATHS
+            "${CMAKE_SOURCE_DIR}/external/sqlite3"
             "C:/ProgramData/chocolatey/lib/sqlite/tools"
             "C:/sqlite3"
             "C:/Program Files/sqlite3"
@@ -49,7 +50,6 @@ else()
             "C:/msys64/mingw64"
             "$ENV{ProgramFiles}/sqlite3"
             "$ENV{LOCALAPPDATA}/sqlite3"
-            "${CMAKE_SOURCE_DIR}/external/sqlite3"
         )
         
         # Try to find sqlite3.h
@@ -65,11 +65,11 @@ else()
             find_path(SQLITE3_INCLUDE_DIR NAMES sqlite3.h)
         endif()
         
-        # Try to find sqlite3 library
+        # Try to find sqlite3 library (DLL on Windows)
         find_library(SQLITE3_LIBRARY
-            NAMES sqlite3 sqlite3.lib libsqlite3 libsqlite3.a
+            NAMES sqlite3 sqlite3.lib sqlite3.dll libsqlite3 libsqlite3.a
             PATHS ${SQLITE3_SEARCH_PATHS}
-            PATH_SUFFIXES lib bin
+            PATH_SUFFIXES lib bin "" .
             NO_DEFAULT_PATH
         )
         
@@ -86,14 +86,29 @@ else()
             target_link_libraries(${LIBNAME} PRIVATE ${SQLITE3_LIBRARY})
             message(STATUS "[${ROOT}/${LIBNAME}] Database features enabled")
         elseif(SQLITE3_INCLUDE_DIR)
-            message(STATUS "[${ROOT}/${LIBNAME}] SQLite3 headers found at: ${SQLITE3_INCLUDE_DIR}")
-            message(WARNING "[${ROOT}/${LIBNAME}] SQLite3 library not found - database features will be disabled")
-            message(WARNING "  To enable database features, install SQLite3 with library:")
-            message(WARNING "  Option 1: vcpkg install sqlite3:x64-windows")
-            message(WARNING "  Option 2: Download precompiled DLL from https://www.sqlite.org/download.html")
-            target_include_directories(${LIBNAME} PUBLIC ${SQLITE3_INCLUDE_DIR})
-            target_compile_definitions(${LIBNAME} PUBLIC SQLITE3_HEADER_ONLY)
-            # Don't link library if it doesn't exist
+            # Try to find just the DLL if no .lib was found
+            find_file(SQLITE3_DLL
+                NAMES sqlite3.dll
+                PATHS ${SQLITE3_SEARCH_PATHS}
+                PATH_SUFFIXES bin "" .
+                NO_DEFAULT_PATH
+            )
+            if(SQLITE3_DLL)
+                message(STATUS "[${ROOT}/${LIBNAME}] SQLite3 DLL found at: ${SQLITE3_DLL}")
+                message(STATUS "  Include: ${SQLITE3_INCLUDE_DIR}")
+                target_include_directories(${LIBNAME} PUBLIC ${SQLITE3_INCLUDE_DIR})
+                target_link_libraries(${LIBNAME} PRIVATE ${SQLITE3_DLL})
+                message(STATUS "[${ROOT}/${LIBNAME}] Database features enabled with DLL")
+            else()
+                message(STATUS "[${ROOT}/${LIBNAME}] SQLite3 headers found at: ${SQLITE3_INCLUDE_DIR}")
+                message(WARNING "[${ROOT}/${LIBNAME}] SQLite3 library not found - database features will be disabled")
+                message(WARNING "  To enable database features, install SQLite3 with library:")
+                message(WARNING "  Option 1: vcpkg install sqlite3:x64-windows")
+                message(WARNING "  Option 2: Download precompiled DLL from https://www.sqlite.org/download.html")
+                target_include_directories(${LIBNAME} PUBLIC ${SQLITE3_INCLUDE_DIR})
+                target_compile_definitions(${LIBNAME} PUBLIC SQLITE3_HEADER_ONLY)
+                # Don't link library if it doesn't exist
+            endif()
         else()
             message(WARNING "[${ROOT}/${LIBNAME}] SQLite3 headers not found!")
             message(WARNING "  Please install SQLite3: choco install sqlite -y")

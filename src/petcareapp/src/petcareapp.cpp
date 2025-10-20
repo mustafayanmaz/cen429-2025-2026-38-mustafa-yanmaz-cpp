@@ -13,6 +13,7 @@
 
 #include "methods.h"
 #include "petcare.h"
+#include "database.h"
 #include "assetProtection.h"
 #include "raspSecurity.h"
 
@@ -50,6 +51,11 @@ int getch() {
  * @brief A pointer to the feeding schedule queue.
  */
 Queue* feedingQueue = NULL;
+
+/**
+ * @brief Global database handle
+ */
+Database* g_database = NULL;
 
 /**
  * @brief Menu structure used for CLI navigation.
@@ -305,7 +311,28 @@ void navigateUserAuthentication(Menu* authMenu, HashTable* userTable, int* isAut
                 scanf("%s", username);
                 printf("Enter Password: ");
                 scanf("%s", password);
+                
+                // Add user to hash table (for in-memory use)
                 addUser(userTable, username, password);
+                
+                // Also add to database if available
+                if (g_database) {
+                    // Get encrypted password from the added user
+                    unsigned int index = hashFunction(username);
+                    User* user = userTable->buckets[index];
+                    while (user != NULL) {
+                        if (strcmp(user->username, username) == 0) {
+                            if (db_add_user(g_database, username, user->encryptedPassword) == 0) {
+                                printf("[DATABASE] User saved to database\n");
+                            } else {
+                                printf("[DATABASE] Warning: Could not save user to database\n");
+                            }
+                            break;
+                        }
+                        user = user->next;
+                    }
+                }
+                
                 printf("User registered successfully! Press any key to return...");
                 getch();
             }
@@ -321,6 +348,12 @@ void navigateUserAuthentication(Menu* authMenu, HashTable* userTable, int* isAut
                 logoutUserSession();
                 saveUsersToFile(userTable, "users.dat");
                 freeHashTable(userTable);
+                
+                // Close database
+                if (g_database) {
+                    db_close(g_database);
+                    printf("[DATABASE] Database closed\n");
+                }
                 
                 // Shutdown RASP
                 if (g_rasp_initialized) {
@@ -386,7 +419,19 @@ void navigatePetsMenu(Menu * petsMenu, Pet * *petList, int isAuthenticated) {
                 scanf("%s", type);
                 printf("Enter pet's age: ");
                 scanf("%d", &age);
+                
+                // Add to in-memory list
                 addPet(petList, name, type, age, activeUser);
+                
+                // Also add to database if available
+                if (g_database) {
+                    if (db_add_pet(g_database, name, type, age, activeUser) == 0) {
+                        printf("[DATABASE] Pet saved to database\n");
+                    } else {
+                        printf("[DATABASE] Warning: Could not save pet to database\n");
+                    }
+                }
+                
                 printf("Pet added successfully! Press any key to continue...");
                 getch();
             }
@@ -404,7 +449,17 @@ void navigatePetsMenu(Menu * petsMenu, Pet * *petList, int isAuthenticated) {
                 CLEAR_SCREEN();
                 printf("Enter the name of the pet to delete: ");
                 scanf("%s", name);
+                
+                // Delete from in-memory list
                 deletePet(petList, name, activeUser);
+                
+                // Also delete from database if available
+                if (g_database) {
+                    if (db_delete_pet(g_database, name, activeUser) == 0) {
+                        printf("[DATABASE] Pet deleted from database\n");
+                    }
+                }
+                
                 getch();
             }
             else if (strcmp(petsMenu->items[selectedIndex], "List All Pets") == 0) {
@@ -1048,6 +1103,16 @@ void navigateMainMenu(Menu * mainMenu, HashTable * userTable, int* isAuthenticat
     static Pet* petList = NULL;
     loadPetsFromFile(&petList, "pets.dat");
     
+    // Also load pets from database if available
+    if (g_database) {
+        int db_pet_count = db_load_all_pets(g_database, &petList);
+        if (db_pet_count > 0) {
+            printf("[DATABASE] Loaded %d pets from database\n", db_pet_count);
+            printf("Press any key to continue...\n");
+            getch();
+        }
+    }
+    
     // CFI for main menu
     if (g_rasp_initialized) {
         rasp_create_cfi_counter(100, (void*)navigateMainMenu);
@@ -1136,6 +1201,12 @@ void navigateMainMenu(Menu * mainMenu, HashTable * userTable, int* isAuthenticat
                 freePetList(petList);
                 freeHashTable(userTable);
                 
+                // Close database
+                if (g_database) {
+                    db_close(g_database);
+                    printf("[DATABASE] Database closed\n");
+                }
+                
                 // Shutdown RASP
                 if (g_rasp_initialized) {
                     char status[512];
@@ -1184,6 +1255,19 @@ int main(int argc, char* argv[]) {
     printf("\nInitializing session security...\n");
     init_petcare_session();
     
+    // Initialize database
+    printf("\nInitializing database...\n");
+    g_database = db_init("petcare.db", NULL);
+    if (g_database) {
+        if (db_create_tables(g_database) == 0) {
+            printf("[DATABASE] Database initialized successfully\n");
+        } else {
+            printf("[DATABASE] Warning: Could not create tables\n");
+        }
+    } else {
+        printf("[DATABASE] Warning: Database initialization failed, using fallback file system\n");
+    }
+    
     printf("\n[SECURITY] All security features initialized\n");
     
     // If in test mode, skip interactive parts
@@ -1205,6 +1289,12 @@ int main(int argc, char* argv[]) {
         if (feedingQueue) free(feedingQueue);
         if (medicineQueue) free(medicineQueue);
         
+        // Close database
+        if (g_database) {
+            db_close(g_database);
+            printf("[TEST MODE] Database closed\n");
+        }
+        
         // Shutdown RASP
         if (g_rasp_initialized) {
             rasp_shutdown();
@@ -1224,6 +1314,15 @@ int main(int argc, char* argv[]) {
     int isAuthenticated = 0;
     HashTable* userTable = createHashTable();
     loadUsersFromFile(userTable, "users.dat");
+    
+    // Also load users from database if available
+    if (g_database) {
+        int db_user_count = db_load_all_users(g_database, userTable);
+        if (db_user_count > 0) {
+            printf("[DATABASE] Loaded %d users from database\n", db_user_count);
+        }
+    }
+    
     loadAppointmentsFromFile();
 
     char* authItems[] = { "Login", "Register", "Guest Mode", "Exit" };

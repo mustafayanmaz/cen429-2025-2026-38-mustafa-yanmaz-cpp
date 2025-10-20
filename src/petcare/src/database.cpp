@@ -380,7 +380,7 @@ int db_get_user_password(Database* db, const char* username, char** password_out
  * @return 1 if exists, 0 if not, negative on error
  */
 int db_user_exists(Database* db, const char* username) {
-    if (!db || !db->db || !username) return -1;
+    if (!db || !db->db || !username) return 0;
     
     sqlite3_stmt* stmt;
     const char* sql = "SELECT COUNT(*) FROM users WHERE username = ?;";
@@ -409,7 +409,7 @@ int db_user_exists(Database* db, const char* username) {
  * @return Number of users loaded, negative on error
  */
 int db_load_all_users(Database* db, HashTable* table) {
-    if (!db || !db->db || !table) return -1;
+    if (!db || !db->db || !table) return 0;
     
     sqlite3_stmt* stmt;
     const char* sql = "SELECT username, encrypted_password FROM users;";
@@ -561,7 +561,7 @@ int db_delete_pet(Database* db, const char* name, const char* owner) {
  * @return Number of pets loaded, negative on error
  */
 int db_load_all_pets(Database* db, Pet** petList) {
-    if (!db || !db->db || !petList) return -1;
+    if (!db || !db->db || !petList) return 0;
     
     sqlite3_stmt* stmt;
     const char* sql = "SELECT name, type, age, owner FROM pets;";
@@ -596,7 +596,7 @@ int db_load_all_pets(Database* db, Pet** petList) {
  * @return 1 if owned, 0 if not, negative on error
  */
 int db_is_pet_owned_by(Database* db, const char* name, const char* owner) {
-    if (!db || !db->db || !name || !owner) return -1;
+    if (!db || !db->db || !name || !owner) return 0;
     
     sqlite3_stmt* stmt;
     const char* sql = "SELECT COUNT(*) FROM pets WHERE name = ? AND owner = ?;";
@@ -753,7 +753,7 @@ int db_delete_appointment(Database* db, const char* pet_name, int day, int month
  * @return Number of appointments loaded, negative on error
  */
 int db_load_all_appointments(Database* db) {
-    if (!db || !db->db) return -1;
+    if (!db || !db->db) return 0;
     
     sqlite3_stmt* stmt;
     const char* sql = "SELECT pet_name, description, day, month, owner FROM appointments;";
@@ -783,7 +783,7 @@ int db_load_all_appointments(Database* db) {
  * @return 1 if occupied, 0 if free, negative on error
  */
 int db_is_date_occupied(Database* db, int day, int month) {
-    if (!db || !db->db) return -1;
+    if (!db || !db->db) return 0;
     
     sqlite3_stmt* stmt;
     const char* sql = "SELECT COUNT(*) FROM appointments WHERE day = ? AND month = ?;";
@@ -857,7 +857,7 @@ int db_add_birthday(Database* db, const char* pet_name, int day, int month, int 
  * @return Number of birthdays loaded, negative on error
  */
 int db_load_all_birthdays(Database* db, BPlusTree* birthdayTree, Pet** petList) {
-    if (!db || !db->db || !birthdayTree) return -1;
+    if (!db || !db->db || !birthdayTree) return 0;
     
     sqlite3_stmt* stmt;
     const char* sql = "SELECT pet_name, day, month, year, owner FROM birthdays;";
@@ -1005,7 +1005,7 @@ int db_delete_stray_animal(Database* db, int id) {
  * @return Number of animals loaded, negative on error
  */
 int db_load_all_stray_animals(Database* db, StrayAnimal** list) {
-    if (!db || !db->db || !list) return -1;
+    if (!db || !db->db || !list) return 0;
     
     sqlite3_stmt* stmt;
     const char* sql = "SELECT id, type, gender, arrival_date, age FROM stray_animals;";
@@ -1108,7 +1108,7 @@ int db_add_adopted_animal(Database* db, int id, const char* type, const char* ge
  * @return Number of animals loaded, negative on error
  */
 int db_load_all_adopted_animals(Database* db, AdoptedAnimal** list) {
-    if (!db || !db->db || !list) return -1;
+    if (!db || !db->db || !list) return 0;
     
     sqlite3_stmt* stmt;
     const char* sql = "SELECT id, type, gender, arrival_date, age, owner, adoption_date FROM adopted_animals;";
@@ -1287,6 +1287,13 @@ int db_backup(Database* db, const char* backup_path) {
  */
 int db_restore(const char* db_path, const char* backup_path) {
     if (!db_path || !backup_path) return -1;
+    
+    // Check if backup file exists
+    FILE* test_file = fopen(backup_path, "rb");
+    if (!test_file) {
+        return -1;  // Backup file doesn't exist
+    }
+    fclose(test_file);
     
     sqlite3 *source_db, *dest_db;
     
