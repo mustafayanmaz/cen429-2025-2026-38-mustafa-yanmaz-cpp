@@ -56,6 +56,15 @@ const char* db_get_error(Database* db) { (void)db; return "SQLite3 library not a
 long long db_last_insert_id(Database* db) { (void)db; return -1; }
 int db_backup(Database* db, const char* backup_path) { (void)db; (void)backup_path; return -1; }
 int db_restore(const char* db_path, const char* backup_path) { (void)db_path; (void)backup_path; return -1; }
+int db_add_feeding_schedule(Database* db, const char* pet_name, const char* schedule_details, const char* owner) { (void)db; (void)pet_name; (void)schedule_details; (void)owner; return -1; }
+int db_update_feeding_schedule(Database* db, const char* pet_name, const char* owner, const char* new_details) { (void)db; (void)pet_name; (void)owner; (void)new_details; return -1; }
+int db_delete_feeding_schedule(Database* db, const char* pet_name, const char* owner) { (void)db; (void)pet_name; (void)owner; return -1; }
+int db_add_medicine_schedule(Database* db, const char* pet_name, const char* schedule_details, const char* owner) { (void)db; (void)pet_name; (void)schedule_details; (void)owner; return -1; }
+int db_update_medicine_schedule(Database* db, const char* pet_name, const char* owner, const char* new_details) { (void)db; (void)pet_name; (void)owner; (void)new_details; return -1; }
+int db_delete_medicine_schedule(Database* db, const char* pet_name, const char* owner) { (void)db; (void)pet_name; (void)owner; return -1; }
+int db_add_exercise_routine(Database* db, const char* pet_name, const char* exercise_details, const char* owner) { (void)db; (void)pet_name; (void)exercise_details; (void)owner; return -1; }
+int db_update_exercise_routine(Database* db, const char* pet_name, const char* owner, const char* new_details) { (void)db; (void)pet_name; (void)owner; (void)new_details; return -1; }
+int db_delete_exercise_routine(Database* db, const char* pet_name, const char* owner) { (void)db; (void)pet_name; (void)owner; return -1; }
 
 #else
 // ============================================================================
@@ -248,6 +257,57 @@ int db_create_tables(Database* db) {
     rc = sqlite3_exec(db->db, sql_adopted, NULL, NULL, &err_msg);
     if (rc != SQLITE_OK) {
         fprintf(stderr, "SQL error (adopted_animals): %s\n", err_msg);
+        sqlite3_free(err_msg);
+        return -1;
+    }
+    
+    // Feeding schedules table
+    const char* sql_feeding = 
+        "CREATE TABLE IF NOT EXISTS feeding_schedules ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "pet_name TEXT NOT NULL,"
+        "schedule_details TEXT NOT NULL,"
+        "owner TEXT NOT NULL,"
+        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        ");";
+    
+    rc = sqlite3_exec(db->db, sql_feeding, NULL, NULL, &err_msg);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "SQL error (feeding_schedules): %s\n", err_msg);
+        sqlite3_free(err_msg);
+        return -1;
+    }
+    
+    // Medicine schedules table
+    const char* sql_medicine = 
+        "CREATE TABLE IF NOT EXISTS medicine_schedules ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "pet_name TEXT NOT NULL,"
+        "schedule_details TEXT NOT NULL,"
+        "owner TEXT NOT NULL,"
+        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        ");";
+    
+    rc = sqlite3_exec(db->db, sql_medicine, NULL, NULL, &err_msg);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "SQL error (medicine_schedules): %s\n", err_msg);
+        sqlite3_free(err_msg);
+        return -1;
+    }
+    
+    // Exercise routines table
+    const char* sql_exercise = 
+        "CREATE TABLE IF NOT EXISTS exercise_routines ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "pet_name TEXT NOT NULL,"
+        "exercise_details TEXT NOT NULL,"
+        "owner TEXT NOT NULL,"
+        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        ");";
+    
+    rc = sqlite3_exec(db->db, sql_exercise, NULL, NULL, &err_msg);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "SQL error (exercise_routines): %s\n", err_msg);
         sqlite3_free(err_msg);
         return -1;
     }
@@ -1320,6 +1380,327 @@ int db_restore(const char* db_path, const char* backup_path) {
     sqlite3_close(dest_db);
     
     return (rc == SQLITE_OK) ? 0 : -1;
+}
+
+// ============================================================================
+// Feeding Schedule Functions
+// ============================================================================
+
+/**
+ * @brief Add a feeding schedule to the database
+ * @param db Database handle
+ * @param pet_name Pet name
+ * @param schedule_details Schedule details
+ * @param owner Owner username
+ * @return 0 on success, non-zero on failure
+ */
+int db_add_feeding_schedule(Database* db, const char* pet_name, const char* schedule_details, const char* owner) {
+    if (!db || !db->db || !pet_name || !schedule_details || !owner) return -1;
+    
+    sqlite3_stmt* stmt;
+    const char* sql = "INSERT INTO feeding_schedules (pet_name, schedule_details, owner) VALUES (?, ?, ?);";
+    
+    int rc = sqlite3_prepare_v2(db->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db->db));
+        return -1;
+    }
+    
+    sqlite3_bind_text(stmt, 1, pet_name, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, schedule_details, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, owner, -1, SQLITE_TRANSIENT);
+    
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Failed to insert feeding schedule: %s\n", sqlite3_errmsg(db->db));
+        return -1;
+    }
+    
+    return 0;
+}
+
+/**
+ * @brief Update a feeding schedule in the database
+ * @param db Database handle
+ * @param pet_name Pet name
+ * @param owner Owner username
+ * @param new_details New schedule details
+ * @return 0 on success, non-zero on failure
+ */
+int db_update_feeding_schedule(Database* db, const char* pet_name, const char* owner, const char* new_details) {
+    if (!db || !db->db || !pet_name || !owner || !new_details) return -1;
+    
+    sqlite3_stmt* stmt;
+    const char* sql = "UPDATE feeding_schedules SET schedule_details = ? WHERE pet_name = ? AND owner = ?;";
+    
+    int rc = sqlite3_prepare_v2(db->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db->db));
+        return -1;
+    }
+    
+    sqlite3_bind_text(stmt, 1, new_details, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, pet_name, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, owner, -1, SQLITE_TRANSIENT);
+    
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Failed to update feeding schedule: %s\n", sqlite3_errmsg(db->db));
+        return -1;
+    }
+    
+    return 0;
+}
+
+/**
+ * @brief Delete a feeding schedule from the database
+ * @param db Database handle
+ * @param pet_name Pet name
+ * @param owner Owner username
+ * @return 0 on success, non-zero on failure
+ */
+int db_delete_feeding_schedule(Database* db, const char* pet_name, const char* owner) {
+    if (!db || !db->db || !pet_name || !owner) return -1;
+    
+    sqlite3_stmt* stmt;
+    const char* sql = "DELETE FROM feeding_schedules WHERE pet_name = ? AND owner = ?;";
+    
+    int rc = sqlite3_prepare_v2(db->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db->db));
+        return -1;
+    }
+    
+    sqlite3_bind_text(stmt, 1, pet_name, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, owner, -1, SQLITE_TRANSIENT);
+    
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Failed to delete feeding schedule: %s\n", sqlite3_errmsg(db->db));
+        return -1;
+    }
+    
+    return 0;
+}
+
+// ============================================================================
+// Medicine Schedule Functions
+// ============================================================================
+
+/**
+ * @brief Add a medicine schedule to the database
+ * @param db Database handle
+ * @param pet_name Pet name
+ * @param schedule_details Schedule details
+ * @param owner Owner username
+ * @return 0 on success, non-zero on failure
+ */
+int db_add_medicine_schedule(Database* db, const char* pet_name, const char* schedule_details, const char* owner) {
+    if (!db || !db->db || !pet_name || !schedule_details || !owner) return -1;
+    
+    sqlite3_stmt* stmt;
+    const char* sql = "INSERT INTO medicine_schedules (pet_name, schedule_details, owner) VALUES (?, ?, ?);";
+    
+    int rc = sqlite3_prepare_v2(db->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db->db));
+        return -1;
+    }
+    
+    sqlite3_bind_text(stmt, 1, pet_name, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, schedule_details, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, owner, -1, SQLITE_TRANSIENT);
+    
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Failed to insert medicine schedule: %s\n", sqlite3_errmsg(db->db));
+        return -1;
+    }
+    
+    return 0;
+}
+
+/**
+ * @brief Update a medicine schedule in the database
+ * @param db Database handle
+ * @param pet_name Pet name
+ * @param owner Owner username
+ * @param new_details New schedule details
+ * @return 0 on success, non-zero on failure
+ */
+int db_update_medicine_schedule(Database* db, const char* pet_name, const char* owner, const char* new_details) {
+    if (!db || !db->db || !pet_name || !owner || !new_details) return -1;
+    
+    sqlite3_stmt* stmt;
+    const char* sql = "UPDATE medicine_schedules SET schedule_details = ? WHERE pet_name = ? AND owner = ?;";
+    
+    int rc = sqlite3_prepare_v2(db->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db->db));
+        return -1;
+    }
+    
+    sqlite3_bind_text(stmt, 1, new_details, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, pet_name, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, owner, -1, SQLITE_TRANSIENT);
+    
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Failed to update medicine schedule: %s\n", sqlite3_errmsg(db->db));
+        return -1;
+    }
+    
+    return 0;
+}
+
+/**
+ * @brief Delete a medicine schedule from the database
+ * @param db Database handle
+ * @param pet_name Pet name
+ * @param owner Owner username
+ * @return 0 on success, non-zero on failure
+ */
+int db_delete_medicine_schedule(Database* db, const char* pet_name, const char* owner) {
+    if (!db || !db->db || !pet_name || !owner) return -1;
+    
+    sqlite3_stmt* stmt;
+    const char* sql = "DELETE FROM medicine_schedules WHERE pet_name = ? AND owner = ?;";
+    
+    int rc = sqlite3_prepare_v2(db->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db->db));
+        return -1;
+    }
+    
+    sqlite3_bind_text(stmt, 1, pet_name, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, owner, -1, SQLITE_TRANSIENT);
+    
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Failed to delete medicine schedule: %s\n", sqlite3_errmsg(db->db));
+        return -1;
+    }
+    
+    return 0;
+}
+
+// ============================================================================
+// Exercise Routine Functions
+// ============================================================================
+
+/**
+ * @brief Add an exercise routine to the database
+ * @param db Database handle
+ * @param pet_name Pet name
+ * @param exercise_details Exercise details
+ * @param owner Owner username
+ * @return 0 on success, non-zero on failure
+ */
+int db_add_exercise_routine(Database* db, const char* pet_name, const char* exercise_details, const char* owner) {
+    if (!db || !db->db || !pet_name || !exercise_details || !owner) return -1;
+    
+    sqlite3_stmt* stmt;
+    const char* sql = "INSERT INTO exercise_routines (pet_name, exercise_details, owner) VALUES (?, ?, ?);";
+    
+    int rc = sqlite3_prepare_v2(db->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db->db));
+        return -1;
+    }
+    
+    sqlite3_bind_text(stmt, 1, pet_name, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, exercise_details, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, owner, -1, SQLITE_TRANSIENT);
+    
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Failed to insert exercise routine: %s\n", sqlite3_errmsg(db->db));
+        return -1;
+    }
+    
+    return 0;
+}
+
+/**
+ * @brief Update an exercise routine in the database
+ * @param db Database handle
+ * @param pet_name Pet name
+ * @param owner Owner username
+ * @param new_details New exercise details
+ * @return 0 on success, non-zero on failure
+ */
+int db_update_exercise_routine(Database* db, const char* pet_name, const char* owner, const char* new_details) {
+    if (!db || !db->db || !pet_name || !owner || !new_details) return -1;
+    
+    sqlite3_stmt* stmt;
+    const char* sql = "UPDATE exercise_routines SET exercise_details = ? WHERE pet_name = ? AND owner = ?;";
+    
+    int rc = sqlite3_prepare_v2(db->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db->db));
+        return -1;
+    }
+    
+    sqlite3_bind_text(stmt, 1, new_details, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, pet_name, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, owner, -1, SQLITE_TRANSIENT);
+    
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Failed to update exercise routine: %s\n", sqlite3_errmsg(db->db));
+        return -1;
+    }
+    
+    return 0;
+}
+
+/**
+ * @brief Delete an exercise routine from the database
+ * @param db Database handle
+ * @param pet_name Pet name
+ * @param owner Owner username
+ * @return 0 on success, non-zero on failure
+ */
+int db_delete_exercise_routine(Database* db, const char* pet_name, const char* owner) {
+    if (!db || !db->db || !pet_name || !owner) return -1;
+    
+    sqlite3_stmt* stmt;
+    const char* sql = "DELETE FROM exercise_routines WHERE pet_name = ? AND owner = ?;";
+    
+    int rc = sqlite3_prepare_v2(db->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db->db));
+        return -1;
+    }
+    
+    sqlite3_bind_text(stmt, 1, pet_name, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, owner, -1, SQLITE_TRANSIENT);
+    
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    if (rc != SQLITE_DONE) {
+        fprintf(stderr, "Failed to delete exercise routine: %s\n", sqlite3_errmsg(db->db));
+        return -1;
+    }
+    
+    return 0;
 }
 
 #endif // SQLITE3_HEADER_ONLY

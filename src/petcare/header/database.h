@@ -366,6 +366,105 @@ int db_backup(Database* db, const char* backup_path);
  */
 int db_restore(const char* db_path, const char* backup_path);
 
+// ============================================================================
+// Feeding Schedule Functions
+// ============================================================================
+
+/**
+ * @brief Add a feeding schedule to the database
+ * @param db Database handle
+ * @param pet_name Pet name
+ * @param schedule_details Schedule details
+ * @param owner Owner username
+ * @return 0 on success, non-zero on failure
+ */
+int db_add_feeding_schedule(Database* db, const char* pet_name, const char* schedule_details, const char* owner);
+
+/**
+ * @brief Update a feeding schedule in the database
+ * @param db Database handle
+ * @param pet_name Pet name
+ * @param owner Owner username
+ * @param new_details New schedule details
+ * @return 0 on success, non-zero on failure
+ */
+int db_update_feeding_schedule(Database* db, const char* pet_name, const char* owner, const char* new_details);
+
+/**
+ * @brief Delete a feeding schedule from the database
+ * @param db Database handle
+ * @param pet_name Pet name
+ * @param owner Owner username
+ * @return 0 on success, non-zero on failure
+ */
+int db_delete_feeding_schedule(Database* db, const char* pet_name, const char* owner);
+
+// ============================================================================
+// Medicine Schedule Functions
+// ============================================================================
+
+/**
+ * @brief Add a medicine schedule to the database
+ * @param db Database handle
+ * @param pet_name Pet name
+ * @param schedule_details Schedule details
+ * @param owner Owner username
+ * @return 0 on success, non-zero on failure
+ */
+int db_add_medicine_schedule(Database* db, const char* pet_name, const char* schedule_details, const char* owner);
+
+/**
+ * @brief Update a medicine schedule in the database
+ * @param db Database handle
+ * @param pet_name Pet name
+ * @param owner Owner username
+ * @param new_details New schedule details
+ * @return 0 on success, non-zero on failure
+ */
+int db_update_medicine_schedule(Database* db, const char* pet_name, const char* owner, const char* new_details);
+
+/**
+ * @brief Delete a medicine schedule from the database
+ * @param db Database handle
+ * @param pet_name Pet name
+ * @param owner Owner username
+ * @return 0 on success, non-zero on failure
+ */
+int db_delete_medicine_schedule(Database* db, const char* pet_name, const char* owner);
+
+// ============================================================================
+// Exercise Routine Functions
+// ============================================================================
+
+/**
+ * @brief Add an exercise routine to the database
+ * @param db Database handle
+ * @param pet_name Pet name
+ * @param exercise_details Exercise details
+ * @param owner Owner username
+ * @return 0 on success, non-zero on failure
+ */
+int db_add_exercise_routine(Database* db, const char* pet_name, const char* exercise_details, const char* owner);
+
+/**
+ * @brief Update an exercise routine in the database
+ * @param db Database handle
+ * @param pet_name Pet name
+ * @param owner Owner username
+ * @param new_details New exercise details
+ * @return 0 on success, non-zero on failure
+ */
+int db_update_exercise_routine(Database* db, const char* pet_name, const char* owner, const char* new_details);
+
+/**
+ * @brief Delete an exercise routine from the database
+ * @param db Database handle
+ * @param pet_name Pet name
+ * @param owner Owner username
+ * @return 0 on success, non-zero on failure
+ */
+int db_delete_exercise_routine(Database* db, const char* pet_name, const char* owner);
+
 #ifdef __cplusplus
 }
 #endif

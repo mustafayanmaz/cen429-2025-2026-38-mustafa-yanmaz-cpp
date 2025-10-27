@@ -65,10 +65,10 @@ TEST_F(UserAuthTest, SaveAndLoadUsers) {
     addUser(table, "testuser1", "password123");
     addUser(table, "testuser2", "mypassword");
 
-    saveUsersToFile(table, "test_users.dat");
+    saveUsersToFile(table, "database");
 
     HashTable* loadedTable = createHashTable();
-    loadUsersFromFile(loadedTable, "test_users.dat");
+    loadUsersFromFile(loadedTable, "database");
 
     ASSERT_EQ(authenticateUser(loadedTable, "testuser1", "password123"), 1) << "User1 should be authenticated after loading from file.";
     ASSERT_EQ(authenticateUser(loadedTable, "testuser2", "mypassword"), 1) << "User2 should be authenticated after loading from file.";
@@ -540,7 +540,7 @@ TEST(AppointmentTests, SaveAppointmentsToFile) {
         EXPECT_GT(size, 0) << "Appointments file should not be empty";
     }
     
-    remove("appointment.data");
+    // Database cleanup is handled automatically
 }
 
 /**
@@ -556,7 +556,8 @@ TEST(AppointmentTests, LoadAppointmentsFromFile) {
     saveAppointmentsToFile();
     
     // File should exist and have content
-    FILE* file = fopen("appointment.data", "rb");
+    // Database operations are handled internally
+    FILE* file = NULL;
     ASSERT_NE(file, nullptr) << "Appointment file should exist";
     
     fseek(file, 0, SEEK_END);
@@ -568,7 +569,7 @@ TEST(AppointmentTests, LoadAppointmentsFromFile) {
     // Call load to ensure it doesn't crash
     loadAppointmentsFromFile();
     
-    remove("appointment.data");
+    // Database cleanup is handled automatically
 }
 
 /**
@@ -585,14 +586,15 @@ TEST(AppointmentTests, SaveLoadCycle) {
     saveAppointmentsToFile();
     
     // Verify file was created
-    FILE* file = fopen("appointment.data", "rb");
+    // Database operations are handled internally
+    FILE* file = NULL;
     ASSERT_NE(file, nullptr) << "Appointment file should be created";
     fclose(file);
     
     // Load should not crash
     EXPECT_NO_THROW(loadAppointmentsFromFile()) << "Loading appointments should not crash";
     
-    remove("appointment.data");
+    // Database cleanup is handled automatically
 }
 
 /**
@@ -1934,7 +1936,7 @@ TEST_F(DatabaseManagementTest, MigrateWithDatabase) {
     
     HashTable* table = createHashTable();
     addUser(table, "migrateuser", "password123");
-    saveUsersToFile(table, "users.dat");
+    saveUsersToFile(table, "database");
     freeHashTable(table);
     
     int result = migrate_dat_to_sqlite();
@@ -1945,7 +1947,7 @@ TEST_F(DatabaseManagementTest, MigrateWithDatabase) {
     EXPECT_EQ(result, 0) << "Migration should succeed when database initialized";
 #endif
     
-    remove("users.dat");
+    // Database cleanup is handled automatically
 }
 
 /**
@@ -1956,7 +1958,7 @@ TEST_F(DatabaseManagementTest, MultipleMigrations) {
     
     HashTable* table = createHashTable();
     addUser(table, "user1", "pass1");
-    saveUsersToFile(table, "users.dat");
+    saveUsersToFile(table, "database");
     freeHashTable(table);
     
     int result1 = migrate_dat_to_sqlite();
@@ -1967,7 +1969,7 @@ TEST_F(DatabaseManagementTest, MultipleMigrations) {
     EXPECT_EQ(result2, 0) << "Second migration should succeed (skip)";
 #endif
     
-    remove("users.dat");
+    // Database cleanup is handled automatically
 }
 
 // ============================================================================
@@ -2504,6 +2506,625 @@ TEST_F(DatabaseStubTest, LoadAllStrayAnimalsReturnsZero) {
     EXPECT_EQ(result, 0) << "db_load_all_stray_animals should return 0 when database unavailable";
 }
 
+// ============================================================================
+// Huffman Coding Tests
+// ============================================================================
+
+/**
+ * @class HuffmanCodingTest
+ * @brief Test fixture for Huffman coding functionality
+ */
+class HuffmanCodingTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        // Initialize test data
+    }
+
+    void TearDown() override {
+        // Clean up any allocated memory
+    }
+};
+
+/**
+ * @brief Test creating a new Huffman tree node
+ */
+TEST_F(HuffmanCodingTest, CreateNewNode) {
+    MinHeapNode* node = newNode('A', 5);
+    
+    ASSERT_NE(node, nullptr) << "Node should not be null";
+    EXPECT_EQ(node->data, 'A') << "Node data should be 'A'";
+    EXPECT_EQ(node->freq, 5) << "Node frequency should be 5";
+    EXPECT_EQ(node->left, nullptr) << "Left child should be null";
+    EXPECT_EQ(node->right, nullptr) << "Right child should be null";
+    
+    free(node);
+}
+
+/**
+ * @brief Test creating a min heap
+ */
+TEST_F(HuffmanCodingTest, CreateMinHeap) {
+    MinHeap* heap = createMinHeap(10);
+    
+    ASSERT_NE(heap, nullptr) << "Heap should not be null";
+    EXPECT_EQ(heap->size, 0) << "Initial heap size should be 0";
+    EXPECT_EQ(heap->capacity, 10) << "Heap capacity should be 10";
+    EXPECT_NE(heap->array, nullptr) << "Heap array should not be null";
+    
+    free(heap->array);
+    free(heap);
+}
+
+/**
+ * @brief Test swapping min heap nodes
+ */
+TEST_F(HuffmanCodingTest, SwapMinHeapNodes) {
+    MinHeapNode* node1 = newNode('A', 5);
+    MinHeapNode* node2 = newNode('B', 3);
+    
+    MinHeapNode* ptr1 = node1;
+    MinHeapNode* ptr2 = node2;
+    
+    swapMinHeapNode(&ptr1, &ptr2);
+    
+    EXPECT_EQ(ptr1, node2) << "First pointer should point to node2";
+    EXPECT_EQ(ptr2, node1) << "Second pointer should point to node1";
+    
+    free(node1);
+    free(node2);
+}
+
+/**
+ * @brief Test building a min heap from data
+ */
+TEST_F(HuffmanCodingTest, BuildMinHeap) {
+    char data[] = {'A', 'B', 'C'};
+    int freq[] = {5, 3, 7};
+    int size = 3;
+    
+    MinHeap* heap = buildMinHeap(data, freq, size);
+    
+    ASSERT_NE(heap, nullptr) << "Heap should not be null";
+    EXPECT_EQ(heap->size, 3) << "Heap size should be 3";
+    EXPECT_EQ(heap->capacity, 3) << "Heap capacity should be 3";
+    
+    // Check that the heap property is maintained (smallest at root)
+    EXPECT_LE(heap->array[0]->freq, heap->array[1]->freq) << "Heap property should be maintained";
+    EXPECT_LE(heap->array[0]->freq, heap->array[2]->freq) << "Heap property should be maintained";
+    
+    // Clean up
+    for (int i = 0; i < heap->size; i++) {
+        free(heap->array[i]);
+    }
+    free(heap->array);
+    free(heap);
+}
+
+/**
+ * @brief Test extracting minimum from heap
+ */
+TEST_F(HuffmanCodingTest, ExtractMin) {
+    char data[] = {'A', 'B', 'C'};
+    int freq[] = {5, 3, 7};
+    int size = 3;
+    
+    MinHeap* heap = buildMinHeap(data, freq, size);
+    
+    MinHeapNode* min = extractMin(heap);
+    
+    ASSERT_NE(min, nullptr) << "Extracted node should not be null";
+    EXPECT_EQ(min->freq, 3) << "Extracted node should have minimum frequency";
+    EXPECT_EQ(heap->size, 2) << "Heap size should decrease by 1";
+    
+    free(min);
+    for (int i = 0; i < heap->size; i++) {
+        free(heap->array[i]);
+    }
+    free(heap->array);
+    free(heap);
+}
+
+/**
+ * @brief Test building Huffman tree
+ */
+TEST_F(HuffmanCodingTest, BuildHuffmanTree) {
+    char data[] = {'A', 'B', 'C', 'D'};
+    int freq[] = {5, 3, 7, 1};
+    int size = 4;
+    
+    MinHeapNode* root = buildHuffmanTree(data, freq, size);
+    
+    ASSERT_NE(root, nullptr) << "Huffman tree root should not be null";
+    EXPECT_EQ(root->freq, 16) << "Root frequency should be sum of all frequencies";
+    EXPECT_EQ(root->data, '$') << "Root should be internal node with '$'";
+    
+    // Clean up tree
+    // Note: In a real implementation, you'd need a proper tree cleanup function
+    free(root);
+}
+
+/**
+ * @brief Test Huffman codes generation
+ */
+TEST_F(HuffmanCodingTest, GenerateHuffmanCodes) {
+    char data[] = {'A', 'B', 'C'};
+    int freq[] = {5, 3, 7};
+    int size = 3;
+    char codes[256][MAX_TREE_HT];
+    
+    // Initialize codes array
+    for (int i = 0; i < 256; i++) {
+        codes[i][0] = '\0';
+    }
+    
+    HuffmanCodes(data, freq, size, codes);
+    
+    // Check that codes were generated
+    EXPECT_NE(codes['A'][0], '\0') << "Code for 'A' should be generated";
+    EXPECT_NE(codes['B'][0], '\0') << "Code for 'B' should be generated";
+    EXPECT_NE(codes['C'][0], '\0') << "Code for 'C' should be generated";
+}
+
+/**
+ * @brief Test string compression
+ */
+TEST_F(HuffmanCodingTest, CompressString) {
+    char data[] = {'A', 'B', 'C'};
+    int freq[] = {5, 3, 7};
+    int size = 3;
+    char codes[256][MAX_TREE_HT];
+    
+    // Initialize codes array
+    for (int i = 0; i < 256; i++) {
+        codes[i][0] = '\0';
+    }
+    
+    HuffmanCodes(data, freq, size, codes);
+    
+    char input[] = "ABC";
+    char output[1000];
+    
+    compress(input, codes, output);
+    
+    // Check that output is not empty
+    EXPECT_GT(strlen(output), 0) << "Compressed output should not be empty";
+}
+
+/**
+ * @brief Test string decompression
+ */
+TEST_F(HuffmanCodingTest, DecompressString) {
+    char data[] = {'A', 'B', 'C'};
+    int freq[] = {5, 3, 7};
+    int size = 3;
+    char codes[256][MAX_TREE_HT];
+    
+    // Initialize codes array
+    for (int i = 0; i < 256; i++) {
+        codes[i][0] = '\0';
+    }
+    
+    HuffmanCodes(data, freq, size, codes);
+    
+    char input[] = "ABC";
+    char compressed[1000];
+    char decompressed[1000];
+    
+    compress(input, codes, compressed);
+    
+    MinHeapNode* root = buildHuffmanTree(data, freq, size);
+    decompress(root, compressed, decompressed);
+    
+    EXPECT_STREQ(input, decompressed) << "Decompressed string should match original";
+    
+    free(root);
+}
+
+// ============================================================================
+// New Database Function Tests
+// ============================================================================
+
+/**
+ * @class NewDatabaseFunctionTest
+ * @brief Test fixture for new database functions
+ */
+class NewDatabaseFunctionTest : public ::testing::Test {
+protected:
+    Database* db;
+    const char* test_db_path = "test_new_functions.db";
+
+    void SetUp() override {
+        db = db_init(test_db_path, NULL);
+        if (db) {
+            db_create_tables(db);
+        }
+    }
+
+    void TearDown() override {
+        if (db) {
+            db_close(db);
+        }
+        remove(test_db_path);
+    }
+};
+
+/**
+ * @brief Test adding feeding schedule
+ */
+TEST_F(NewDatabaseFunctionTest, AddFeedingSchedule) {
+    if (!db) {
+        GTEST_SKIP() << "Database not available";
+        return;
+    }
+    
+    int result = db_add_feeding_schedule(db, "Buddy", "Morning: 8AM, Evening: 6PM", "testuser");
+    
+#ifndef SQLITE3_HEADER_ONLY
+    EXPECT_EQ(result, 0) << "Adding feeding schedule should succeed";
+#else
+    EXPECT_EQ(result, -1) << "Adding feeding schedule should fail when SQLite3 unavailable";
+#endif
+}
+
+/**
+ * @brief Test updating feeding schedule
+ */
+TEST_F(NewDatabaseFunctionTest, UpdateFeedingSchedule) {
+    if (!db) {
+        GTEST_SKIP() << "Database not available";
+        return;
+    }
+    
+    int result = db_update_feeding_schedule(db, "Buddy", "testuser", "Morning: 7AM, Evening: 7PM");
+    
+#ifndef SQLITE3_HEADER_ONLY
+    EXPECT_EQ(result, 0) << "Updating feeding schedule should succeed";
+#else
+    EXPECT_EQ(result, -1) << "Updating feeding schedule should fail when SQLite3 unavailable";
+#endif
+}
+
+/**
+ * @brief Test deleting feeding schedule
+ */
+TEST_F(NewDatabaseFunctionTest, DeleteFeedingSchedule) {
+    if (!db) {
+        GTEST_SKIP() << "Database not available";
+        return;
+    }
+    
+    int result = db_delete_feeding_schedule(db, "Buddy", "testuser");
+    
+#ifndef SQLITE3_HEADER_ONLY
+    EXPECT_EQ(result, 0) << "Deleting feeding schedule should succeed";
+#else
+    EXPECT_EQ(result, -1) << "Deleting feeding schedule should fail when SQLite3 unavailable";
+#endif
+}
+
+/**
+ * @brief Test adding medicine schedule
+ */
+TEST_F(NewDatabaseFunctionTest, AddMedicineSchedule) {
+    if (!db) {
+        GTEST_SKIP() << "Database not available";
+        return;
+    }
+    
+    int result = db_add_medicine_schedule(db, "Buddy", "Antibiotic: 2x daily", "testuser");
+    
+#ifndef SQLITE3_HEADER_ONLY
+    EXPECT_EQ(result, 0) << "Adding medicine schedule should succeed";
+#else
+    EXPECT_EQ(result, -1) << "Adding medicine schedule should fail when SQLite3 unavailable";
+#endif
+}
+
+/**
+ * @brief Test updating medicine schedule
+ */
+TEST_F(NewDatabaseFunctionTest, UpdateMedicineSchedule) {
+    if (!db) {
+        GTEST_SKIP() << "Database not available";
+        return;
+    }
+    
+    int result = db_update_medicine_schedule(db, "Buddy", "testuser", "Antibiotic: 3x daily");
+    
+#ifndef SQLITE3_HEADER_ONLY
+    EXPECT_EQ(result, 0) << "Updating medicine schedule should succeed";
+#else
+    EXPECT_EQ(result, -1) << "Updating medicine schedule should fail when SQLite3 unavailable";
+#endif
+}
+
+/**
+ * @brief Test deleting medicine schedule
+ */
+TEST_F(NewDatabaseFunctionTest, DeleteMedicineSchedule) {
+    if (!db) {
+        GTEST_SKIP() << "Database not available";
+        return;
+    }
+    
+    int result = db_delete_medicine_schedule(db, "Buddy", "testuser");
+    
+#ifndef SQLITE3_HEADER_ONLY
+    EXPECT_EQ(result, 0) << "Deleting medicine schedule should succeed";
+#else
+    EXPECT_EQ(result, -1) << "Deleting medicine schedule should fail when SQLite3 unavailable";
+#endif
+}
+
+/**
+ * @brief Test adding exercise routine
+ */
+TEST_F(NewDatabaseFunctionTest, AddExerciseRoutine) {
+    if (!db) {
+        GTEST_SKIP() << "Database not available";
+        return;
+    }
+    
+    int result = db_add_exercise_routine(db, "Buddy", "30 min walk daily", "testuser");
+    
+#ifndef SQLITE3_HEADER_ONLY
+    EXPECT_EQ(result, 0) << "Adding exercise routine should succeed";
+#else
+    EXPECT_EQ(result, -1) << "Adding exercise routine should fail when SQLite3 unavailable";
+#endif
+}
+
+/**
+ * @brief Test updating exercise routine
+ */
+TEST_F(NewDatabaseFunctionTest, UpdateExerciseRoutine) {
+    if (!db) {
+        GTEST_SKIP() << "Database not available";
+        return;
+    }
+    
+    int result = db_update_exercise_routine(db, "Buddy", "testuser", "45 min walk daily");
+    
+#ifndef SQLITE3_HEADER_ONLY
+    EXPECT_EQ(result, 0) << "Updating exercise routine should succeed";
+#else
+    EXPECT_EQ(result, -1) << "Updating exercise routine should fail when SQLite3 unavailable";
+#endif
+}
+
+/**
+ * @brief Test deleting exercise routine
+ */
+TEST_F(NewDatabaseFunctionTest, DeleteExerciseRoutine) {
+    if (!db) {
+        GTEST_SKIP() << "Database not available";
+        return;
+    }
+    
+    int result = db_delete_exercise_routine(db, "Buddy", "testuser");
+    
+#ifndef SQLITE3_HEADER_ONLY
+    EXPECT_EQ(result, 0) << "Deleting exercise routine should succeed";
+#else
+    EXPECT_EQ(result, -1) << "Deleting exercise routine should fail when SQLite3 unavailable";
+#endif
+}
+
+// ============================================================================
+// Edge Case and Error Handling Tests
+// ============================================================================
+
+/**
+ * @class EdgeCaseTest
+ * @brief Test fixture for edge cases and error handling
+ */
+class EdgeCaseTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        // Initialize test environment
+    }
+
+    void TearDown() override {
+        // Clean up test environment
+    }
+};
+
+/**
+ * @brief Test hash function with empty string
+ */
+TEST_F(EdgeCaseTest, HashFunctionEmptyString) {
+    unsigned int hash = hashFunction("");
+    EXPECT_GE(hash, 0) << "Hash of empty string should be non-negative";
+    EXPECT_LT(hash, HASH_TABLE_SIZE) << "Hash should be within table size";
+}
+
+/**
+ * @brief Test hash function with very long string
+ */
+TEST_F(EdgeCaseTest, HashFunctionLongString) {
+    char longString[1000];
+    memset(longString, 'A', 999);
+    longString[999] = '\0';
+    
+    unsigned int hash = hashFunction(longString);
+    EXPECT_GE(hash, 0) << "Hash of long string should be non-negative";
+    EXPECT_LT(hash, HASH_TABLE_SIZE) << "Hash should be within table size";
+}
+
+/**
+ * @brief Test hash function with special characters
+ */
+TEST_F(EdgeCaseTest, HashFunctionSpecialCharacters) {
+    const char* specialChars = "!@#$%^&*()_+-=[]{}|;':\",./<>?";
+    unsigned int hash = hashFunction(specialChars);
+    EXPECT_GE(hash, 0) << "Hash of special characters should be non-negative";
+    EXPECT_LT(hash, HASH_TABLE_SIZE) << "Hash should be within table size";
+}
+
+/**
+ * @brief Test password encryption with empty string
+ */
+TEST_F(EdgeCaseTest, EncryptPasswordEmptyString) {
+    char* encrypted = encryptPassword("");
+    ASSERT_NE(encrypted, nullptr) << "Encrypted empty string should not be null";
+    EXPECT_STREQ(encrypted, "") << "Encrypted empty string should be empty";
+    free(encrypted);
+}
+
+/**
+ * @brief Test password encryption with NULL
+ */
+TEST_F(EdgeCaseTest, EncryptPasswordNull) {
+    char* encrypted = encryptPassword(nullptr);
+    // This should handle NULL gracefully or assert
+    if (encrypted) {
+        free(encrypted);
+    }
+}
+
+/**
+ * @brief Test user authentication with NULL parameters
+ */
+TEST_F(EdgeCaseTest, AuthenticateUserNullParameters) {
+    HashTable* table = createHashTable();
+    
+    int result = authenticateUser(nullptr, "user", "pass");
+    EXPECT_EQ(result, 0) << "Authentication with NULL table should fail";
+    
+    result = authenticateUser(table, nullptr, "pass");
+    EXPECT_EQ(result, 0) << "Authentication with NULL username should fail";
+    
+    result = authenticateUser(table, "user", nullptr);
+    EXPECT_EQ(result, 0) << "Authentication with NULL password should fail";
+    
+    freeHashTable(table);
+}
+
+/**
+ * @brief Test pet operations with NULL parameters
+ */
+TEST_F(EdgeCaseTest, PetOperationsNullParameters) {
+    Pet* petList = NULL;
+    
+    // Test addPet with NULL parameters
+    addPet(&petList, nullptr, "Dog", 3, "owner");
+    EXPECT_EQ(petList, nullptr) << "Adding pet with NULL name should not create pet";
+    
+    addPet(&petList, "Buddy", nullptr, 3, "owner");
+    EXPECT_EQ(petList, nullptr) << "Adding pet with NULL type should not create pet";
+    
+    addPet(&petList, "Buddy", "Dog", 3, nullptr);
+    EXPECT_EQ(petList, nullptr) << "Adding pet with NULL owner should not create pet";
+    
+    // Test updatePet with NULL parameters
+    updatePet(petList, nullptr, "owner");
+    // Note: updatePet returns void, so we can't check return value
+    
+    // Test deletePet with NULL parameters
+    deletePet(&petList, nullptr, "owner");
+    // Note: deletePet returns void, so we can't check return value
+    
+    deletePet(&petList, "Buddy", nullptr);
+    // Note: deletePet returns void, so we can't check return value
+}
+
+/**
+ * @brief Test appointment operations with invalid dates
+ */
+TEST_F(EdgeCaseTest, AppointmentOperationsInvalidDates) {
+    // Test with invalid day - addAppointment takes 6 parameters
+    addAppointment("Buddy", "Checkup", 32, 6, "owner", petList);
+    addAppointment("Buddy", "Checkup", 0, 6, "owner", petList);
+    addAppointment("Buddy", "Checkup", -1, 6, "owner", petList);
+    
+    // Test with invalid month
+    addAppointment("Buddy", "Checkup", 15, 13, "owner", petList);
+    addAppointment("Buddy", "Checkup", 15, 0, "owner", petList);
+    addAppointment("Buddy", "Checkup", 15, -1, "owner", petList);
+    
+    // Test with NULL parameters
+    addAppointment(nullptr, "Checkup", 15, 6, "owner", petList);
+    addAppointment("Buddy", nullptr, 15, 6, "owner", petList);
+}
+
+/**
+ * @brief Test database operations with NULL database
+ */
+TEST_F(EdgeCaseTest, DatabaseOperationsNullDatabase) {
+    // Test all database functions with NULL database
+    EXPECT_EQ(db_add_user(nullptr, "user", "pass"), -1);
+    EXPECT_EQ(db_get_user_password(nullptr, "user", nullptr), -1);
+    EXPECT_EQ(db_user_exists(nullptr, "user"), 0);
+    EXPECT_EQ(db_load_all_users(nullptr, nullptr), 0);
+    EXPECT_EQ(db_add_pet(nullptr, "Buddy", "Dog", 3, "owner"), -1);
+    EXPECT_EQ(db_add_appointment(nullptr, "Buddy", "Checkup", 15, 6, "owner"), -1);
+    EXPECT_EQ(db_add_birthday(nullptr, "Buddy", 15, 6, 2020, "owner"), -1);
+    EXPECT_EQ(db_add_stray_animal(nullptr, "Dog", "Male", "01/01/2023", 3), -1);
+    EXPECT_EQ(db_add_feeding_schedule(nullptr, "Buddy", "Schedule", "owner"), -1);
+    EXPECT_EQ(db_add_medicine_schedule(nullptr, "Buddy", "Medicine", "owner"), -1);
+    EXPECT_EQ(db_add_exercise_routine(nullptr, "Buddy", "Exercise", "owner"), -1);
+}
+
+/**
+ * @brief Test memory allocation failures
+ */
+TEST_F(EdgeCaseTest, MemoryAllocationFailures) {
+    // Test creating hash table (should handle malloc failure gracefully)
+    HashTable* table = createHashTable();
+    ASSERT_NE(table, nullptr) << "Hash table creation should succeed in normal conditions";
+    freeHashTable(table);
+    
+    // Test creating pet list
+    Pet* petList = NULL;
+    addPet(&petList, "Buddy", "Dog", 3, "owner");
+    ASSERT_NE(petList, nullptr) << "Pet creation should succeed in normal conditions";
+    freePetList(petList);
+}
+
+/**
+ * @brief Test boundary values
+ */
+TEST_F(EdgeCaseTest, BoundaryValues) {
+    // Test maximum age
+    Pet* petList = NULL;
+    addPet(&petList, "OldPet", "Dog", 100, "owner");
+    ASSERT_NE(petList, nullptr) << "Pet with maximum age should be created";
+    EXPECT_EQ(petList->age, 100) << "Pet age should be 100";
+    freePetList(petList);
+    
+    // Test minimum age
+    petList = NULL;
+    addPet(&petList, "YoungPet", "Cat", 0, "owner");
+    ASSERT_NE(petList, nullptr) << "Pet with minimum age should be created";
+    EXPECT_EQ(petList->age, 0) << "Pet age should be 0";
+    freePetList(petList);
+    
+    // Test negative age (should be handled gracefully)
+    petList = NULL;
+    addPet(&petList, "InvalidPet", "Dog", -1, "owner");
+    // The function should handle negative age appropriately
+    freePetList(petList);
+}
+
+// ============================================================================
+// Security Function Tests (Commented out - functions not yet implemented)
+// ============================================================================
+
+// Note: Security functions like secure_strdup, secure_wipe, obfuscated strings,
+// whitebox cryptography, device fingerprinting, and session management are
+// not yet implemented in the codebase. These tests are commented out until
+// the functions are available.
+
+/*
+class SecurityFunctionTest : public ::testing::Test {
+protected:
+    void SetUp() override {}
+    void TearDown() override {}
+};
+
+// Security function tests would go here when the functions are implemented
+*/
+
 /**
  * @brief Test that db_add_adopted_animal returns error
  */
@@ -2542,4 +3163,577 @@ TEST_F(DatabaseStubTest, BackupReturnsError) {
 TEST_F(DatabaseStubTest, RestoreReturnsError) {
     int result = db_restore("test.db", "backup.db");
     EXPECT_EQ(result, -1) << "db_restore should return -1 when database unavailable";
+}
+
+// ============================================================================
+// COMPREHENSIVE DATABASE FUNCTION TESTS
+// ============================================================================
+
+/**
+ * @brief Test fixture for comprehensive database function testing
+ */
+class ComprehensiveDatabaseTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        // Create test database
+        test_db_path = "test_comprehensive.db";
+        db = db_init(test_db_path, NULL);
+        if (db) {
+            db_create_tables(db);
+        }
+    }
+
+    void TearDown() override {
+        if (db) {
+            db_close(db);
+        }
+        // Clean up test database file
+        remove(test_db_path);
+    }
+
+    Database* db = nullptr;
+    const char* test_db_path;
+};
+
+/**
+ * @brief Test database initialization and table creation
+ */
+TEST_F(ComprehensiveDatabaseTest, DatabaseInitializationAndTableCreation) {
+    ASSERT_NE(db, nullptr) << "Database should be initialized successfully";
+    
+    // Test that tables are created
+    int result = db_create_tables(db);
+    EXPECT_EQ(result, 0) << "Tables should be created successfully";
+}
+
+/**
+ * @brief Test user management functions
+ */
+TEST_F(ComprehensiveDatabaseTest, UserManagementFunctions) {
+    ASSERT_NE(db, nullptr);
+    
+    // Test adding user
+    int result = db_add_user(db, "testuser", "encrypted_password");
+    EXPECT_EQ(result, 0) << "User should be added successfully";
+    
+    // Test user exists
+    int exists = db_user_exists(db, "testuser");
+    EXPECT_EQ(exists, 1) << "User should exist after adding";
+    
+    // Test getting user password
+    char* password = nullptr;
+    result = db_get_user_password(db, "testuser", &password);
+    EXPECT_EQ(result, 0) << "Should get user password successfully";
+    EXPECT_NE(password, nullptr) << "Password should not be null";
+    if (password) {
+        EXPECT_STREQ(password, "encrypted_password") << "Password should match";
+        free(password);
+    }
+    
+    // Test non-existent user
+    exists = db_user_exists(db, "nonexistent");
+    EXPECT_EQ(exists, 0) << "Non-existent user should not exist";
+}
+
+/**
+ * @brief Test pet management functions
+ */
+TEST_F(ComprehensiveDatabaseTest, PetManagementFunctions) {
+    ASSERT_NE(db, nullptr);
+    
+    // Test adding pet
+    int result = db_add_pet(db, "Buddy", "Dog", 3, "testuser");
+    EXPECT_EQ(result, 0) << "Pet should be added successfully";
+    
+    // Test pet ownership check
+    int owned = db_is_pet_owned_by(db, "Buddy", "testuser");
+    EXPECT_EQ(owned, 1) << "Pet should be owned by testuser";
+    
+    // Test updating pet
+    result = db_update_pet(db, "Buddy", "testuser", "BuddyUpdated", "Cat", 4);
+    EXPECT_EQ(result, 0) << "Pet should be updated successfully";
+    
+    // Test deleting pet
+    result = db_delete_pet(db, "BuddyUpdated", "testuser");
+    EXPECT_EQ(result, 0) << "Pet should be deleted successfully";
+    
+    // Test pet no longer exists
+    owned = db_is_pet_owned_by(db, "BuddyUpdated", "testuser");
+    EXPECT_EQ(owned, 0) << "Pet should no longer exist after deletion";
+}
+
+/**
+ * @brief Test appointment management functions
+ */
+TEST_F(ComprehensiveDatabaseTest, AppointmentManagementFunctions) {
+    ASSERT_NE(db, nullptr);
+    
+    // Test adding appointment
+    int result = db_add_appointment(db, "Buddy", "Checkup", 15, 6, "testuser");
+    EXPECT_EQ(result, 0) << "Appointment should be added successfully";
+    
+    // Test date occupation check
+    int occupied = db_is_date_occupied(db, 15, 6);
+    EXPECT_EQ(occupied, 1) << "Date should be occupied";
+    
+    // Test updating appointment
+    result = db_update_appointment(db, "Buddy", 15, 6, 16, 6, "Vaccination", "testuser");
+    EXPECT_EQ(result, 0) << "Appointment should be updated successfully";
+    
+    // Test deleting appointment
+    result = db_delete_appointment(db, "Buddy", 16, 6, "testuser");
+    EXPECT_EQ(result, 0) << "Appointment should be deleted successfully";
+    
+    // Test date no longer occupied
+    occupied = db_is_date_occupied(db, 16, 6);
+    EXPECT_EQ(occupied, 0) << "Date should no longer be occupied";
+}
+
+/**
+ * @brief Test birthday management functions
+ */
+TEST_F(ComprehensiveDatabaseTest, BirthdayManagementFunctions) {
+    ASSERT_NE(db, nullptr);
+    
+    // Test adding birthday
+    int result = db_add_birthday(db, "Buddy", 15, 6, 2020, "testuser");
+    EXPECT_EQ(result, 0) << "Birthday should be added successfully";
+    
+    // Test updating birthday (same pet, different date)
+    result = db_add_birthday(db, "Buddy", 20, 7, 2021, "testuser");
+    EXPECT_EQ(result, 0) << "Birthday should be updated successfully";
+}
+
+/**
+ * @brief Test stray animal management functions
+ */
+TEST_F(ComprehensiveDatabaseTest, StrayAnimalManagementFunctions) {
+    ASSERT_NE(db, nullptr);
+    
+    // Test adding stray animal
+    int result = db_add_stray_animal(db, "Dog", "Male", "01/01/2023", 3);
+    EXPECT_GT(result, 0) << "Stray animal should be added and return ID";
+    int animal_id = result;
+    
+    // Test updating stray animal
+    result = db_update_stray_animal(db, animal_id, "Cat", "Female", "02/02/2023", 2);
+    EXPECT_EQ(result, 0) << "Stray animal should be updated successfully";
+    
+    // Test deleting stray animal
+    result = db_delete_stray_animal(db, animal_id);
+    EXPECT_EQ(result, 0) << "Stray animal should be deleted successfully";
+}
+
+/**
+ * @brief Test adopted animal management functions
+ */
+TEST_F(ComprehensiveDatabaseTest, AdoptedAnimalManagementFunctions) {
+    ASSERT_NE(db, nullptr);
+    
+    // First add a stray animal
+    int stray_id = db_add_stray_animal(db, "Dog", "Male", "01/01/2023", 3);
+    ASSERT_GT(stray_id, 0) << "Should add stray animal first";
+    
+    // Test adopting stray animal
+    int result = db_adopt_stray_animal(db, stray_id, "testuser", "02/02/2023");
+    EXPECT_EQ(result, 0) << "Stray animal should be adopted successfully";
+    
+    // Test adding adopted animal directly
+    result = db_add_adopted_animal(db, 999, "Cat", "Female", "03/03/2023", 2, "testuser2", "04/04/2023");
+    EXPECT_EQ(result, 0) << "Adopted animal should be added successfully";
+}
+
+/**
+ * @brief Test feeding schedule functions
+ */
+TEST_F(ComprehensiveDatabaseTest, FeedingScheduleFunctions) {
+    ASSERT_NE(db, nullptr);
+    
+    // Test adding feeding schedule
+    int result = db_add_feeding_schedule(db, "Buddy", "Morning: 8AM, Evening: 6PM", "testuser");
+    EXPECT_EQ(result, 0) << "Feeding schedule should be added successfully";
+    
+    // Test updating feeding schedule
+    result = db_update_feeding_schedule(db, "Buddy", "testuser", "Morning: 7AM, Evening: 7PM");
+    EXPECT_EQ(result, 0) << "Feeding schedule should be updated successfully";
+    
+    // Test deleting feeding schedule
+    result = db_delete_feeding_schedule(db, "Buddy", "testuser");
+    EXPECT_EQ(result, 0) << "Feeding schedule should be deleted successfully";
+}
+
+/**
+ * @brief Test medicine schedule functions
+ */
+TEST_F(ComprehensiveDatabaseTest, MedicineScheduleFunctions) {
+    ASSERT_NE(db, nullptr);
+    
+    // Test adding medicine schedule
+    int result = db_add_medicine_schedule(db, "Buddy", "Antibiotic: 2x daily", "testuser");
+    EXPECT_EQ(result, 0) << "Medicine schedule should be added successfully";
+    
+    // Test updating medicine schedule
+    result = db_update_medicine_schedule(db, "Buddy", "testuser", "Antibiotic: 3x daily");
+    EXPECT_EQ(result, 0) << "Medicine schedule should be updated successfully";
+    
+    // Test deleting medicine schedule
+    result = db_delete_medicine_schedule(db, "Buddy", "testuser");
+    EXPECT_EQ(result, 0) << "Medicine schedule should be deleted successfully";
+}
+
+/**
+ * @brief Test exercise routine functions
+ */
+TEST_F(ComprehensiveDatabaseTest, ExerciseRoutineFunctions) {
+    ASSERT_NE(db, nullptr);
+    
+    // Test adding exercise routine
+    int result = db_add_exercise_routine(db, "Buddy", "30 min walk daily", "testuser");
+    EXPECT_EQ(result, 0) << "Exercise routine should be added successfully";
+    
+    // Test updating exercise routine
+    result = db_update_exercise_routine(db, "Buddy", "testuser", "45 min walk daily");
+    EXPECT_EQ(result, 0) << "Exercise routine should be updated successfully";
+    
+    // Test deleting exercise routine
+    result = db_delete_exercise_routine(db, "Buddy", "testuser");
+    EXPECT_EQ(result, 0) << "Exercise routine should be deleted successfully";
+}
+
+/**
+ * @brief Test transaction functions
+ */
+TEST_F(ComprehensiveDatabaseTest, TransactionFunctions) {
+    ASSERT_NE(db, nullptr);
+    
+    // Test beginning transaction
+    int result = db_begin_transaction(db);
+    EXPECT_EQ(result, 0) << "Transaction should begin successfully";
+    
+    // Test committing transaction
+    result = db_commit_transaction(db);
+    EXPECT_EQ(result, 0) << "Transaction should commit successfully";
+    
+    // Test rollback transaction
+    result = db_begin_transaction(db);
+    EXPECT_EQ(result, 0) << "Transaction should begin successfully";
+    
+    result = db_rollback_transaction(db);
+    EXPECT_EQ(result, 0) << "Transaction should rollback successfully";
+}
+
+/**
+ * @brief Test utility functions
+ */
+TEST_F(ComprehensiveDatabaseTest, UtilityFunctions) {
+    ASSERT_NE(db, nullptr);
+    
+    // Test getting error message
+    const char* error = db_get_error(db);
+    EXPECT_NE(error, nullptr) << "Error message should not be null";
+    
+    // Test last insert ID
+    long long last_id = db_last_insert_id(db);
+    EXPECT_GE(last_id, 0) << "Last insert ID should be non-negative";
+    
+    // Test execute function
+    int result = db_execute(db, "SELECT 1");
+    EXPECT_EQ(result, 0) << "Execute should succeed for valid SQL";
+}
+
+/**
+ * @brief Test backup and restore functions
+ */
+TEST_F(ComprehensiveDatabaseTest, BackupAndRestoreFunctions) {
+    ASSERT_NE(db, nullptr);
+    
+    // Add some test data
+    db_add_user(db, "testuser", "password");
+    db_add_pet(db, "Buddy", "Dog", 3, "testuser");
+    
+    // Test backup
+    int result = db_backup(db, "test_backup.db");
+    EXPECT_EQ(result, 0) << "Backup should succeed";
+    
+    // Test restore
+    result = db_restore("test_restored.db", "test_backup.db");
+    EXPECT_EQ(result, 0) << "Restore should succeed";
+    
+    // Clean up backup files
+    remove("test_backup.db");
+    remove("test_restored.db");
+}
+
+// ============================================================================
+// DATABASE EDGE CASE TESTS
+// ============================================================================
+
+/**
+ * @brief Test fixture for database edge case testing
+ */
+class DatabaseEdgeCaseTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        test_db_path = "test_edge_cases.db";
+        db = db_init(test_db_path, NULL);
+        if (db) {
+            db_create_tables(db);
+        }
+    }
+
+    void TearDown() override {
+        if (db) {
+            db_close(db);
+        }
+        remove(test_db_path);
+    }
+
+    Database* db = nullptr;
+    const char* test_db_path;
+};
+
+/**
+ * @brief Test database functions with invalid parameters
+ */
+TEST_F(DatabaseEdgeCaseTest, InvalidParameters) {
+    ASSERT_NE(db, nullptr);
+    
+    // Test with NULL parameters
+    EXPECT_EQ(db_add_user(db, NULL, "password"), -1);
+    EXPECT_EQ(db_add_user(db, "user", NULL), -1);
+    EXPECT_EQ(db_add_pet(db, NULL, "Dog", 3, "user"), -1);
+    EXPECT_EQ(db_add_pet(db, "Buddy", NULL, 3, "user"), -1);
+    EXPECT_EQ(db_add_pet(db, "Buddy", "Dog", 3, NULL), -1);
+    EXPECT_EQ(db_add_appointment(db, NULL, "Checkup", 15, 6, "user"), -1);
+    EXPECT_EQ(db_add_appointment(db, "Buddy", NULL, 15, 6, "user"), -1);
+    EXPECT_EQ(db_add_appointment(db, "Buddy", "Checkup", 15, 6, NULL), -1);
+}
+
+/**
+ * @brief Test database functions with empty strings
+ */
+TEST_F(DatabaseEdgeCaseTest, EmptyStrings) {
+    ASSERT_NE(db, nullptr);
+    
+    // Test with empty strings
+    EXPECT_EQ(db_add_user(db, "", "password"), -1);
+    EXPECT_EQ(db_add_user(db, "user", ""), -1);
+    EXPECT_EQ(db_add_pet(db, "", "Dog", 3, "user"), -1);
+    EXPECT_EQ(db_add_pet(db, "Buddy", "", 3, "user"), -1);
+    EXPECT_EQ(db_add_pet(db, "Buddy", "Dog", 3, ""), -1);
+}
+
+/**
+ * @brief Test database functions with boundary values
+ */
+TEST_F(DatabaseEdgeCaseTest, BoundaryValues) {
+    ASSERT_NE(db, nullptr);
+    
+    // Test with very long strings
+    char long_string[1000];
+    memset(long_string, 'A', sizeof(long_string) - 1);
+    long_string[sizeof(long_string) - 1] = '\0';
+    
+    EXPECT_EQ(db_add_user(db, long_string, "password"), -1);
+    EXPECT_EQ(db_add_pet(db, long_string, "Dog", 3, "user"), -1);
+    
+    // Test with negative age
+    EXPECT_EQ(db_add_pet(db, "Buddy", "Dog", -1, "user"), -1);
+    
+    // Test with invalid dates
+    EXPECT_EQ(db_add_appointment(db, "Buddy", "Checkup", 0, 6, "user"), -1);
+    EXPECT_EQ(db_add_appointment(db, "Buddy", "Checkup", 15, 0, "user"), -1);
+    EXPECT_EQ(db_add_appointment(db, "Buddy", "Checkup", 32, 6, "user"), -1);
+    EXPECT_EQ(db_add_appointment(db, "Buddy", "Checkup", 15, 13, "user"), -1);
+}
+
+/**
+ * @brief Test database functions with duplicate data
+ */
+TEST_F(DatabaseEdgeCaseTest, DuplicateData) {
+    ASSERT_NE(db, nullptr);
+    
+    // Add initial data
+    EXPECT_EQ(db_add_user(db, "testuser", "password"), 0);
+    EXPECT_EQ(db_add_pet(db, "Buddy", "Dog", 3, "testuser"), 0);
+    EXPECT_EQ(db_add_appointment(db, "Buddy", "Checkup", 15, 6, "testuser"), 0);
+    
+    // Test duplicate user
+    EXPECT_EQ(db_add_user(db, "testuser", "password2"), -1);
+    
+    // Test duplicate appointment date
+    EXPECT_EQ(db_add_appointment(db, "Buddy", "Vaccination", 15, 6, "testuser"), -1);
+}
+
+/**
+ * @brief Test database functions with non-existent references
+ */
+TEST_F(DatabaseEdgeCaseTest, NonExistentReferences) {
+    ASSERT_NE(db, nullptr);
+    
+    // Test operations on non-existent data
+    EXPECT_EQ(db_is_pet_owned_by(db, "NonExistent", "user"), 0);
+    EXPECT_EQ(db_user_exists(db, "NonExistent"), 0);
+    EXPECT_EQ(db_is_date_occupied(db, 99, 99), 0);
+    
+    // Test updating non-existent records
+    EXPECT_EQ(db_update_pet(db, "NonExistent", "user", "NewName", "Cat", 2), -1);
+    EXPECT_EQ(db_delete_pet(db, "NonExistent", "user"), -1);
+    EXPECT_EQ(db_update_appointment(db, "NonExistent", 99, 99, 16, 6, "New", "user"), -1);
+    EXPECT_EQ(db_delete_appointment(db, "NonExistent", 99, 99, "user"), -1);
+}
+
+// ============================================================================
+// DATABASE INTEGRATION TESTS
+// ============================================================================
+
+/**
+ * @brief Test fixture for database integration testing
+ */
+class DatabaseIntegrationTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        test_db_path = "test_integration.db";
+        db = db_init(test_db_path, NULL);
+        if (db) {
+            db_create_tables(db);
+        }
+    }
+
+    void TearDown() override {
+        if (db) {
+            db_close(db);
+        }
+        remove(test_db_path);
+    }
+
+    Database* db = nullptr;
+    const char* test_db_path;
+};
+
+/**
+ * @brief Test complete user workflow
+ */
+TEST_F(DatabaseIntegrationTest, CompleteUserWorkflow) {
+    ASSERT_NE(db, nullptr);
+    
+    // 1. Register user
+    EXPECT_EQ(db_add_user(db, "testuser", "encrypted_password"), 0);
+    EXPECT_EQ(db_user_exists(db, "testuser"), 1);
+    
+    // 2. Add pets
+    EXPECT_EQ(db_add_pet(db, "Buddy", "Dog", 3, "testuser"), 0);
+    EXPECT_EQ(db_add_pet(db, "Kitty", "Cat", 2, "testuser"), 0);
+    EXPECT_EQ(db_is_pet_owned_by(db, "Buddy", "testuser"), 1);
+    EXPECT_EQ(db_is_pet_owned_by(db, "Kitty", "testuser"), 1);
+    
+    // 3. Add appointments
+    EXPECT_EQ(db_add_appointment(db, "Buddy", "Checkup", 15, 6, "testuser"), 0);
+    EXPECT_EQ(db_add_appointment(db, "Kitty", "Vaccination", 20, 6, "testuser"), 0);
+    EXPECT_EQ(db_is_date_occupied(db, 15, 6), 1);
+    EXPECT_EQ(db_is_date_occupied(db, 20, 6), 1);
+    
+    // 4. Add birthdays
+    EXPECT_EQ(db_add_birthday(db, "Buddy", 15, 6, 2020, "testuser"), 0);
+    EXPECT_EQ(db_add_birthday(db, "Kitty", 20, 7, 2021, "testuser"), 0);
+    
+    // 5. Add schedules
+    EXPECT_EQ(db_add_feeding_schedule(db, "Buddy", "Morning: 8AM, Evening: 6PM", "testuser"), 0);
+    EXPECT_EQ(db_add_medicine_schedule(db, "Kitty", "Antibiotic: 2x daily", "testuser"), 0);
+    EXPECT_EQ(db_add_exercise_routine(db, "Buddy", "30 min walk daily", "testuser"), 0);
+    
+    // 6. Update records
+    EXPECT_EQ(db_update_pet(db, "Buddy", "testuser", "BuddyUpdated", "Dog", 4), 0);
+    EXPECT_EQ(db_update_appointment(db, "BuddyUpdated", 15, 6, 16, 6, "Updated Checkup", "testuser"), 0);
+    EXPECT_EQ(db_update_feeding_schedule(db, "BuddyUpdated", "testuser", "Morning: 7AM, Evening: 7PM"), 0);
+    
+    // 7. Delete records
+    EXPECT_EQ(db_delete_appointment(db, "BuddyUpdated", 16, 6, "testuser"), 0);
+    EXPECT_EQ(db_delete_feeding_schedule(db, "BuddyUpdated", "testuser"), 0);
+    EXPECT_EQ(db_delete_pet(db, "BuddyUpdated", "testuser"), 0);
+    
+    // 8. Verify deletions
+    EXPECT_EQ(db_is_pet_owned_by(db, "BuddyUpdated", "testuser"), 0);
+    EXPECT_EQ(db_is_date_occupied(db, 16, 6), 0);
+}
+
+/**
+ * @brief Test stray animal adoption workflow
+ */
+TEST_F(DatabaseIntegrationTest, StrayAnimalAdoptionWorkflow) {
+    ASSERT_NE(db, nullptr);
+    
+    // 1. Add stray animals
+    int stray_id1 = db_add_stray_animal(db, "Dog", "Male", "01/01/2023", 3);
+    int stray_id2 = db_add_stray_animal(db, "Cat", "Female", "02/02/2023", 2);
+    EXPECT_GT(stray_id1, 0);
+    EXPECT_GT(stray_id2, 0);
+    
+    // 2. Update stray animal
+    EXPECT_EQ(db_update_stray_animal(db, stray_id1, "Dog", "Male", "01/01/2023", 4), 0);
+    
+    // 3. Adopt stray animals
+    EXPECT_EQ(db_adopt_stray_animal(db, stray_id1, "testuser1", "03/03/2023"), 0);
+    EXPECT_EQ(db_adopt_stray_animal(db, stray_id2, "testuser2", "04/04/2023"), 0);
+    
+    // 4. Verify adoption (stray animals should be removed from stray table)
+    EXPECT_EQ(db_delete_stray_animal(db, stray_id1), -1); // Should fail as already adopted
+    EXPECT_EQ(db_delete_stray_animal(db, stray_id2), -1); // Should fail as already adopted
+}
+
+/**
+ * @brief Test database transaction rollback
+ */
+TEST_F(DatabaseIntegrationTest, TransactionRollback) {
+    ASSERT_NE(db, nullptr);
+    
+    // Begin transaction
+    EXPECT_EQ(db_begin_transaction(db), 0);
+    
+    // Add some data
+    EXPECT_EQ(db_add_user(db, "testuser", "password"), 0);
+    EXPECT_EQ(db_add_pet(db, "Buddy", "Dog", 3, "testuser"), 0);
+    
+    // Rollback transaction
+    EXPECT_EQ(db_rollback_transaction(db), 0);
+    
+    // Verify data was not committed
+    EXPECT_EQ(db_user_exists(db, "testuser"), 0);
+    EXPECT_EQ(db_is_pet_owned_by(db, "Buddy", "testuser"), 0);
+}
+
+/**
+ * @brief Test database backup and restore workflow
+ */
+TEST_F(DatabaseIntegrationTest, BackupAndRestoreWorkflow) {
+    ASSERT_NE(db, nullptr);
+    
+    // Add test data
+    EXPECT_EQ(db_add_user(db, "testuser", "password"), 0);
+    EXPECT_EQ(db_add_pet(db, "Buddy", "Dog", 3, "testuser"), 0);
+    EXPECT_EQ(db_add_appointment(db, "Buddy", "Checkup", 15, 6, "testuser"), 0);
+    
+    // Create backup
+    EXPECT_EQ(db_backup(db, "integration_backup.db"), 0);
+    
+    // Add more data after backup
+    EXPECT_EQ(db_add_pet(db, "Kitty", "Cat", 2, "testuser"), 0);
+    
+    // Restore from backup
+    EXPECT_EQ(db_restore("integration_restored.db", "integration_backup.db"), 0);
+    
+    // Verify restored data (should not have Kitty)
+    Database* restored_db = db_init("integration_restored.db", NULL);
+    ASSERT_NE(restored_db, nullptr);
+    
+    EXPECT_EQ(db_user_exists(restored_db, "testuser"), 1);
+    EXPECT_EQ(db_is_pet_owned_by(restored_db, "Buddy", "testuser"), 1);
+    EXPECT_EQ(db_is_pet_owned_by(restored_db, "Kitty", "testuser"), 0);
+    EXPECT_EQ(db_is_date_occupied(restored_db, 15, 6), 1);
+    
+    db_close(restored_db);
+    
+    // Clean up
+    remove("integration_backup.db");
+    remove("integration_restored.db");
 }

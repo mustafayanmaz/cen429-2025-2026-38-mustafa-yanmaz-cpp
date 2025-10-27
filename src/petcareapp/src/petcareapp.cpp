@@ -346,7 +346,7 @@ void navigateUserAuthentication(Menu* authMenu, HashTable* userTable, int* isAut
                 CLEAR_SCREEN();
                 printf("Exiting program...\n");
                 logoutUserSession();
-                saveUsersToFile(userTable, "users.dat");
+                saveUsersToFile(userTable, "database");
                 freeHashTable(userTable);
                 
                 // Close database
@@ -552,6 +552,9 @@ void navigateFeedingMenu(Menu * feedingMenu, Pet * petList) {
                 printf("Enter feeding schedule details: ");
                 scanf(" %[^\n]", scheduleDetails);
                 enqueue(feedingQueue, petName, scheduleDetails);
+                if (g_database) {
+                    db_add_feeding_schedule(g_database, petName, scheduleDetails, activeUser);
+                }
                 printf("Feeding schedule added! Press any key to return...");
                 getch();
             }
@@ -563,6 +566,9 @@ void navigateFeedingMenu(Menu * feedingMenu, Pet * petList) {
                 printf("Enter new feeding schedule details: ");
                 scanf(" %[^\n]", newDetails);
                 updateFeedingSchedule(feedingQueue, petName, newDetails);
+                if (g_database) {
+                    db_update_feeding_schedule(g_database, petName, activeUser, newDetails);
+                }
                 printf("Press any key to return...");
                 getch();
             }
@@ -572,6 +578,9 @@ void navigateFeedingMenu(Menu * feedingMenu, Pet * petList) {
                 printf("Enter pet's name to delete the feeding schedule: ");
                 scanf("%s", petName);
                 deleteFeedingSchedule(feedingQueue, petName);
+                if (g_database) {
+                    db_delete_feeding_schedule(g_database, petName, activeUser);
+                }
                 printf("Press any key to return...");
                 getch();
             }
@@ -594,6 +603,9 @@ void navigateFeedingMenu(Menu * feedingMenu, Pet * petList) {
                 printf("Enter medicine schedule details: ");
                 scanf(" %[^\n]", scheduleDetails);
                 addMedicineSchedule(medicineQueue, petName, scheduleDetails);
+                if (g_database) {
+                    db_add_medicine_schedule(g_database, petName, scheduleDetails, activeUser);
+                }
                 printf("Press any key to return...");
                 getch();
             }
@@ -605,6 +617,9 @@ void navigateFeedingMenu(Menu * feedingMenu, Pet * petList) {
                 printf("Enter new medicine schedule details: ");
                 scanf(" %[^\n]", newDetails);
                 updateMedicineSchedule(medicineQueue, petName, newDetails);
+                if (g_database) {
+                    db_update_medicine_schedule(g_database, petName, activeUser, newDetails);
+                }
                 printf("Press any key to return...");
                 getch();
             }
@@ -614,6 +629,9 @@ void navigateFeedingMenu(Menu * feedingMenu, Pet * petList) {
                 printf("Enter pet's name to delete the medicine schedule: ");
                 scanf("%s", petName);
                 deleteMedicineSchedule(medicineQueue, petName);
+                if (g_database) {
+                    db_delete_medicine_schedule(g_database, petName, activeUser);
+                }
                 printf("Press any key to return...");
                 getch();
             }
@@ -650,10 +668,14 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
     int selectedIndex = 0;
 
     static StrayAnimal* strayList = NULL;
-    loadStrayAnimalsFromFile(&strayList, "adoptable.dat");
+    if (g_database) {
+        db_load_all_stray_animals(g_database, &strayList);
+    }
 
     static AdoptedAnimal* adoptedList = NULL;
-    loadAdoptedAnimalsFromFile(&adoptedList, "adopted.dat");
+    if (g_database) {
+        db_load_all_adopted_animals(g_database, &adoptedList);
+    }
 
     while (1) {
         CLEAR_SCREEN();
@@ -705,7 +727,9 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
                     birthdayTree = createBPlusTree();
                 }
                 insertBirthday(birthdayTree, petName, birthdayDay, birthdayMonth, birthdayYear);
-                saveBirthdaysToFile(birthdayTree, "birthdays.data", petList);
+                if (g_database) {
+                    db_add_birthday(g_database, petName, birthdayDay, birthdayMonth, birthdayYear, activeUser);
+                }
                 printf("Birthday recorded successfully! Press any key to return...");
                 getch();
             }
@@ -723,7 +747,9 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
                 scanf("%d", &age);
 
                 addStrayAnimalToList(&strayList, type, gender, arrivalDate, age);
-                saveStrayAnimalsToFile(strayList, "adoptable.dat");
+                if (g_database) {
+                    db_add_stray_animal(g_database, type, gender, arrivalDate, age);
+                }
                 printf("Stray animal added successfully! Press any key to continue...");
                 getch();
             }
@@ -750,7 +776,9 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
                 scanf("%d", &newAge);
 
                 updateStrayAnimal(strayList, id, newType, newGender, newArrivalDate, newAge);
-                saveStrayAnimalsToFile(strayList, "adoptable.dat");
+                if (g_database) {
+                    db_update_stray_animal(g_database, id, newType, newGender, newArrivalDate, newAge);
+                }
                 printf("Press any key to continue...");
                 getch();
             }
@@ -761,7 +789,9 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
                 int id;
                 scanf("%d", &id);
                 deleteStrayAnimal(&strayList, id);
-                saveStrayAnimalsToFile(strayList, "adoptable.dat");
+                if (g_database) {
+                    db_delete_stray_animal(g_database, id);
+                }
                 printf("Press any key to continue...");
                 getch();
             }
@@ -799,7 +829,9 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
                 scanf("%s", adoptionDate);
 
                 adoptStrayAnimal(&strayList, activeUser, chosenID, newName, adoptionDate);
-                saveStrayAnimalsToFile(strayList, "adoptable.dat");
+                if (g_database) {
+                    db_adopt_stray_animal(g_database, chosenID, activeUser, adoptionDate);
+                }
                 printf("Press any key to continue...");
                 getch();
             }
@@ -807,7 +839,9 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
                 CLEAR_SCREEN();
                 free(adoptedList);
                 adoptedList = NULL;
-                loadAdoptedAnimalsFromFile(&adoptedList, "adopted.dat");
+                if (g_database) {
+                    db_load_all_adopted_animals(g_database, &adoptedList);
+                }
                 listAllAdoptedAnimals(adoptedList);
                 printf("Press any key to continue...");
                 getch();
@@ -828,8 +862,7 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
                 getch();
             }
             else if (strcmp(adaptationMenu->items[selectedIndex], "Back") == 0) {
-                saveStrayAnimalsToFile(strayList, "adoptable.dat");
-                saveAdoptedAnimalsToFile(adoptedList, "adopted.dat");
+                // Data is already saved to database during operations
                 return;
             }
         }
@@ -1008,6 +1041,9 @@ void navigateExerciseMenu(Menu * exerciseMenu, Pet * petList, char* activeUser) 
                 scanf(" %99[^\n]", exercise);
 
                 addExerciseRoutine(petName, exercise);
+                if (g_database) {
+                    db_add_exercise_routine(g_database, petName, exercise, activeUser);
+                }
                 printf(" Press any key to return...");
                 getch();
             }
@@ -1101,7 +1137,7 @@ void aboutMenu(char text[]) {
 void navigateMainMenu(Menu * mainMenu, HashTable * userTable, int* isAuthenticated) {
     int selectedIndex = 0;
     static Pet* petList = NULL;
-    loadPetsFromFile(&petList, "pets.dat");
+    loadPetsFromFile(&petList, "database");
     
     // Also load pets from database if available
     if (g_database) {
@@ -1194,8 +1230,8 @@ void navigateMainMenu(Menu * mainMenu, HashTable * userTable, int* isAuthenticat
                 }
                 
                 logoutUserSession();
-                savePetsToFile(petList, "pets.dat");
-                saveUsersToFile(userTable, "users.dat");
+                savePetsToFile(petList, "database");
+                saveUsersToFile(userTable, "database");
                 saveAppointmentsToFile();
                 saveAppointmentsToFile();
                 freePetList(petList);
@@ -1279,7 +1315,7 @@ int main(int argc, char* argv[]) {
         feedingQueue = createQueue();
         medicineQueue = createQueue();
         HashTable* userTable = createHashTable();
-        loadUsersFromFile(userTable, "users.dat");
+        loadUsersFromFile(userTable, "database");
         loadAppointmentsFromFile();
         
         printf("[TEST MODE] Data structures initialized successfully\n");
@@ -1313,7 +1349,7 @@ int main(int argc, char* argv[]) {
 
     int isAuthenticated = 0;
     HashTable* userTable = createHashTable();
-    loadUsersFromFile(userTable, "users.dat");
+    loadUsersFromFile(userTable, "database");
     
     // Also load users from database if available
     if (g_database) {

@@ -144,8 +144,8 @@ int authenticateUser(HashTable* table, const char* username, const char* passwor
  * @param filename Name of the file where users are saved (or "database" to use SQLite).
  */
 void saveUsersToFile(HashTable* table, const char* filename) {
-    // If database is initialized and filename is "database", use SQLite
-    if (g_petcare_db && strcmp(filename, "users.dat") == 0) {
+    // Always use SQLite database if available
+    if (g_petcare_db) {
         // Clear existing users in database first
         db_execute(g_petcare_db, "DELETE FROM users;");
         
@@ -240,8 +240,8 @@ void saveUsersToFile(HashTable* table, const char* filename) {
  * @param filename Name of the file containing user data (or "database" to use SQLite).
  */
 void loadUsersFromFile(HashTable* table, const char* filename) {
-    // If database is initialized and filename is "users.dat", use SQLite
-    if (g_petcare_db && strcmp(filename, "users.dat") == 0) {
+    // Always use SQLite database if available
+    if (g_petcare_db) {
         db_load_all_users(g_petcare_db, table);
         return;
     }
@@ -433,8 +433,8 @@ void deletePet(Pet** petList, const char* name, const char* owner) {
  * @param filename Name of the file to save the list (or "database" to use SQLite).
  */
 void savePetsToFile(Pet* petList, const char* filename) {
-    // If database is initialized and filename is "pets.dat", use SQLite
-    if (g_petcare_db && strcmp(filename, "pets.dat") == 0) {
+    // Always use SQLite database if available
+    if (g_petcare_db) {
         // Clear existing pets in database first
         db_execute(g_petcare_db, "DELETE FROM pets;");
         
@@ -526,8 +526,8 @@ void savePetsToFile(Pet* petList, const char* filename) {
  * @param filename Name of the file to load the list from (or "database" to use SQLite).
  */
 void loadPetsFromFile(Pet** petList, const char* filename) {
-    // If database is initialized and filename is "pets.dat", use SQLite
-    if (g_petcare_db && strcmp(filename, "pets.dat") == 0) {
+    // Always use SQLite database if available
+    if (g_petcare_db) {
         db_load_all_pets(g_petcare_db, petList);
         return;
     }
@@ -1043,7 +1043,7 @@ void xorEncryptDecrypt(char* data, size_t len, const char* key) {
  * @brief Saves all appointments to a file (or database).
  */
 void saveAppointmentsToFile() {
-    // If database is initialized, save to SQLite
+    // Always use SQLite database if available
     if (g_petcare_db) {
         // Clear existing appointments in database first
         db_execute(g_petcare_db, "DELETE FROM appointments;");
@@ -1095,7 +1095,7 @@ void saveAppointmentsToFile() {
  * @brief Loads all appointments from a file (or database).
  */
 void loadAppointmentsFromFile() {
-    // If database is initialized, load from SQLite
+    // Always use SQLite database if available
     if (g_petcare_db) {
         // Clear existing appointments in memory
         appointmentList = NULL;
