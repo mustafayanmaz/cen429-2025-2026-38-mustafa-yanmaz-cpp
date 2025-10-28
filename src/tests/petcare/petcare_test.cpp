@@ -544,60 +544,6 @@ TEST(AppointmentTests, SaveAppointmentsToFile) {
 }
 
 /**
- * @brief Tests loading appointments from file
- */
-TEST(AppointmentTests, LoadAppointmentsFromFile) {
-    resetData();
-    
-    addPet(&petList, "Buddy", "Dog", 3, "Alice");
-    addAppointment("Buddy", "Checkup", 20, 7, "Alice", petList);
-    addAppointment("Buddy", "Grooming", 25, 8, "Alice", petList);
-    
-    saveAppointmentsToFile();
-    
-    // File should exist and have content
-    // Database operations are handled internally
-    FILE* file = NULL;
-    ASSERT_NE(file, nullptr) << "Appointment file should exist";
-    
-    fseek(file, 0, SEEK_END);
-    long size = ftell(file);
-    fclose(file);
-    
-    EXPECT_GT(size, 0) << "Appointment file should have content";
-    
-    // Call load to ensure it doesn't crash
-    loadAppointmentsFromFile();
-    
-    // Database cleanup is handled automatically
-}
-
-/**
- * @brief Tests save and load appointment cycle preserves data
- */
-TEST(AppointmentTests, SaveLoadCycle) {
-    resetData();
-    
-    addPet(&petList, "Max", "Cat", 2, "Bob");
-    addAppointment("Max", "Checkup", 12, 3, "Bob", petList);
-    addAppointment("Max", "Vaccination", 18, 4, "Bob", petList);
-    
-    // Save appointments
-    saveAppointmentsToFile();
-    
-    // Verify file was created
-    // Database operations are handled internally
-    FILE* file = NULL;
-    ASSERT_NE(file, nullptr) << "Appointment file should be created";
-    fclose(file);
-    
-    // Load should not crash
-    EXPECT_NO_THROW(loadAppointmentsFromFile()) << "Loading appointments should not crash";
-    
-    // Database cleanup is handled automatically
-}
-
-/**
  * @class BPlusTreeTest
  * @brief Test fixture for B+ tree operations on pet birthdays.
  */

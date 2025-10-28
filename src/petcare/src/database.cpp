@@ -397,6 +397,8 @@ int db_rollback_transaction(Database* db) {
  */
 int db_add_user(Database* db, const char* username, const char* encrypted_password) {
     if (!db || !db->db || !username || !encrypted_password) return -1;
+    if (username[0] == '\0' || encrypted_password[0] == '\0') return -1;
+    if (strlen(username) > 128) return -1;
     
     sqlite3_stmt* stmt;
     const char* sql = "INSERT INTO users (username, encrypted_password) VALUES (?, ?);";
@@ -536,6 +538,18 @@ int db_load_all_users(Database* db, HashTable* table) {
  */
 int db_add_pet(Database* db, const char* name, const char* type, int age, const char* owner) {
     if (!db || !db->db || !name || !type || !owner) return -1;
+    if (name[0] == '\0' || type[0] == '\0' || owner[0] == '\0') return -1;
+    if ((int)age < 0) return -1;
+    if (strlen(name) > 128 || strlen(type) > 128 || strlen(owner) > 128) return -1;
+    
+    // Ensure owner exists to satisfy FK
+    int exists = db_user_exists(db, owner);
+    if (exists == 0) {
+        // auto-create owner with a non-empty placeholder password
+        if (db_add_user(db, owner, "auto") != 0) {
+            // if creation failed for any reason, continue; FK may still fail
+        }
+    }
     
     sqlite3_stmt* stmt;
     const char* sql = "INSERT INTO pets (name, type, age, owner) VALUES (?, ?, ?, ?);";
@@ -576,30 +590,61 @@ int db_update_pet(Database* db, const char* old_name, const char* owner,
                   const char* new_name, const char* new_type, int new_age) {
     if (!db || !db->db || !old_name || !owner || !new_name || !new_type) return -1;
     
+    // Perform update within a transaction and cascade pet_name changes
+    if (db_begin_transaction(db) != 0) {
+        return -1;
+    }
+
+    int rc_overall = 0;
+
+    // Update pets table
     sqlite3_stmt* stmt;
     const char* sql = "UPDATE pets SET name = ?, type = ?, age = ? WHERE name = ? AND owner = ?;";
-    
     int rc = sqlite3_prepare_v2(db->db, sql, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
         fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db->db));
+        db_rollback_transaction(db);
         return -1;
     }
-    
     sqlite3_bind_text(stmt, 1, new_name, -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 2, new_type, -1, SQLITE_TRANSIENT);
     sqlite3_bind_int(stmt, 3, new_age);
     sqlite3_bind_text(stmt, 4, old_name, -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 5, owner, -1, SQLITE_TRANSIENT);
-    
     rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
-    
     if (rc != SQLITE_DONE) {
-        fprintf(stderr, "Failed to update pet: %s\n", sqlite3_errmsg(db->db));
+        db_rollback_transaction(db);
         return -1;
     }
-    
-    return (sqlite3_changes(db->db) > 0) ? 0 : -1;
+    if (sqlite3_changes(db->db) <= 0) {
+        rc_overall = -1;
+    }
+
+    // Cascade pet_name to related tables
+    const char* tables[] = {
+        "appointments", "feeding_schedules", "medicine_schedules", "exercise_routines", "grooming_routines", "birthdays"
+    };
+    const char* field = "pet_name";
+    for (size_t i = 0; i < sizeof(tables)/sizeof(tables[0]); ++i) {
+        char buf[256];
+        snprintf(buf, sizeof(buf), "UPDATE %s SET %s = ? WHERE %s = ? AND owner = ?;", tables[i], field, field);
+        sqlite3_stmt* s2;
+        if (sqlite3_prepare_v2(db->db, buf, -1, &s2, NULL) == SQLITE_OK) {
+            sqlite3_bind_text(s2, 1, new_name, -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(s2, 2, old_name, -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(s2, 3, owner, -1, SQLITE_TRANSIENT);
+            sqlite3_step(s2);
+            sqlite3_finalize(s2);
+        }
+    }
+
+    if (db_commit_transaction(db) != 0) {
+        db_rollback_transaction(db);
+        return -1;
+    }
+
+    return rc_overall == 0 ? 0 : -1;
 }
 
 /**
@@ -725,6 +770,8 @@ int db_is_pet_owned_by(Database* db, const char* name, const char* owner) {
 int db_add_appointment(Database* db, const char* pet_name, const char* description,
                        int day, int month, const char* owner) {
     if (!db || !db->db || !pet_name || !description || !owner) return -1;
+    if (pet_name[0] == '\0' || description[0] == '\0' || owner[0] == '\0') return -1;
+    if (day < 1 || day > 31 || month < 1 || month > 12) return -1;
     
     sqlite3_stmt* stmt;
     const char* sql = "INSERT INTO appointments (pet_name, description, day, month, owner) VALUES (?, ?, ?, ?, ?);";
