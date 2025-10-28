@@ -65,6 +65,10 @@ int db_delete_medicine_schedule(Database* db, const char* pet_name, const char* 
 int db_add_exercise_routine(Database* db, const char* pet_name, const char* exercise_details, const char* owner) { (void)db; (void)pet_name; (void)exercise_details; (void)owner; return -1; }
 int db_update_exercise_routine(Database* db, const char* pet_name, const char* owner, const char* new_details) { (void)db; (void)pet_name; (void)owner; (void)new_details; return -1; }
 int db_delete_exercise_routine(Database* db, const char* pet_name, const char* owner) { (void)db; (void)pet_name; (void)owner; return -1; }
+int db_add_grooming_routine(Database* db, const char* pet_name, const char* grooming_details, const char* owner) { (void)db; (void)pet_name; (void)grooming_details; (void)owner; return -1; }
+int db_update_grooming_routine(Database* db, const char* pet_name, const char* owner, const char* new_details) { (void)db; (void)pet_name; (void)owner; (void)new_details; return -1; }
+int db_delete_grooming_routine(Database* db, const char* pet_name, const char* owner) { (void)db; (void)pet_name; (void)owner; return -1; }
+int db_print_all_groomings(Database* db) { (void)db; return 0; }
 
 #else
 // ============================================================================
@@ -78,7 +82,7 @@ static int decrypt_database_page(void* pCtx, int nPage, unsigned char* pData, in
 /**
  * @brief Encryption key for database (stored obfuscated)
  */
-static const char* DB_ENCRYPTION_KEY = "PetCare2024DatabaseEncryption!@#$";
+static const char* DB_ENCRYPTION_KEY = "PetCare2025DatabaseEncryption!@#$";
 
 /**
  * @brief Initialize the database connection
@@ -308,6 +312,23 @@ int db_create_tables(Database* db) {
     rc = sqlite3_exec(db->db, sql_exercise, NULL, NULL, &err_msg);
     if (rc != SQLITE_OK) {
         fprintf(stderr, "SQL error (exercise_routines): %s\n", err_msg);
+        sqlite3_free(err_msg);
+        return -1;
+    }
+    
+    // Grooming routines table
+    const char* sql_grooming = 
+        "CREATE TABLE IF NOT EXISTS grooming_routines ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "pet_name TEXT NOT NULL,"
+        "grooming_details TEXT NOT NULL,"
+        "owner TEXT NOT NULL,"
+        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        ");";
+    
+    rc = sqlite3_exec(db->db, sql_grooming, NULL, NULL, &err_msg);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "SQL error (grooming_routines): %s\n", err_msg);
         sqlite3_free(err_msg);
         return -1;
     }
@@ -639,8 +660,16 @@ int db_load_all_pets(Database* db, Pet** petList) {
         int age = sqlite3_column_int(stmt, 2);
         const char* owner = (const char*)sqlite3_column_text(stmt, 3);
         
-        // Add pet to the list
-        addPet(petList, name, type, age, owner);
+        // Create pet node without printing
+        Pet* node = (Pet*)malloc(sizeof(Pet));
+        node->name = strdup(name);
+        node->type = strdup(type);
+        node->age = age;
+        node->owner = strdup(owner);
+        node->prev = NULL;
+        node->next = *petList;
+        if (*petList) { (*petList)->prev = node; }
+        *petList = node;
         count++;
     }
     
@@ -1701,6 +1730,134 @@ int db_delete_exercise_routine(Database* db, const char* pet_name, const char* o
     }
     
     return 0;
+}
+
+int db_add_grooming_routine(Database* db, const char* pet_name, const char* grooming_details, const char* owner) {
+    if (!db || !db->db || !pet_name || !grooming_details || !owner) return -1;
+    sqlite3_stmt* stmt;
+    const char* sql = "INSERT INTO grooming_routines (pet_name, grooming_details, owner) VALUES (?, ?, ?);";
+    int rc = sqlite3_prepare_v2(db->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) { fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db->db)); return -1; }
+    sqlite3_bind_text(stmt, 1, pet_name, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, grooming_details, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, owner, -1, SQLITE_TRANSIENT);
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (rc != SQLITE_DONE) { fprintf(stderr, "Failed to insert grooming routine: %s\n", sqlite3_errmsg(db->db)); return -1; }
+    return 0;
+}
+
+int db_update_grooming_routine(Database* db, const char* pet_name, const char* owner, const char* new_details) {
+    if (!db || !db->db || !pet_name || !owner || !new_details) return -1;
+    sqlite3_stmt* stmt;
+    const char* sql = "UPDATE grooming_routines SET grooming_details = ? WHERE pet_name = ? AND owner = ?;";
+    int rc = sqlite3_prepare_v2(db->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) { fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db->db)); return -1; }
+    sqlite3_bind_text(stmt, 1, new_details, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, pet_name, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, owner, -1, SQLITE_TRANSIENT);
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (rc != SQLITE_DONE) { fprintf(stderr, "Failed to update grooming routine: %s\n", sqlite3_errmsg(db->db)); return -1; }
+    return 0;
+}
+
+int db_delete_grooming_routine(Database* db, const char* pet_name, const char* owner) {
+    if (!db || !db->db || !pet_name || !owner) return -1;
+    sqlite3_stmt* stmt;
+    const char* sql = "DELETE FROM grooming_routines WHERE pet_name = ? AND owner = ?;";
+    int rc = sqlite3_prepare_v2(db->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) { fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db->db)); return -1; }
+    sqlite3_bind_text(stmt, 1, pet_name, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, owner, -1, SQLITE_TRANSIENT);
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (rc != SQLITE_DONE) { fprintf(stderr, "Failed to delete grooming routine: %s\n", sqlite3_errmsg(db->db)); return -1; }
+    return 0;
+}
+
+int db_print_all_groomings(Database* db) {
+    if (!db || !db->db) return 0;
+    sqlite3_stmt* stmt;
+    const char* sql = "SELECT pet_name, grooming_details, owner FROM grooming_routines;";
+    int rc = sqlite3_prepare_v2(db->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) { return -1; }
+    int count = 0;
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        const char* pet = (const char*)sqlite3_column_text(stmt, 0);
+        const char* det = (const char*)sqlite3_column_text(stmt, 1);
+        const char* own = (const char*)sqlite3_column_text(stmt, 2);
+        printf("Pet: %s, Owner: %s, Grooming: %s\n", pet ? pet : "", own ? own : "", det ? det : "");
+        count++;
+    }
+    sqlite3_finalize(stmt);
+    return count;
+}
+
+// Load feeding schedules into memory queue
+int db_load_feeding_schedules(Database* db, Queue* queue) {
+    if (!db || !db->db || !queue) return 0;
+    // clear existing queue
+    while (!isQueueEmpty(queue)) { FeedingSchedule* f = dequeue(queue); if (f) free(f); }
+    sqlite3_stmt* stmt;
+    const char* sql = "SELECT pet_name, schedule_details, owner FROM feeding_schedules;";
+    int rc = sqlite3_prepare_v2(db->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) { return -1; }
+    int count = 0;
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        const char* pet_name = (const char*)sqlite3_column_text(stmt, 0);
+        const char* details = (const char*)sqlite3_column_text(stmt, 1);
+        // owner not used in queue display
+        enqueue(queue, pet_name, details);
+        count++;
+    }
+    sqlite3_finalize(stmt);
+    return count;
+}
+
+// Load medicine schedules into memory queue
+int db_load_medicine_schedules(Database* db, Queue* queue) {
+    if (!db || !db->db || !queue) return 0;
+    while (!isQueueEmpty(queue)) { FeedingSchedule* f = dequeue(queue); if (f) free(f); }
+    sqlite3_stmt* stmt;
+    const char* sql = "SELECT pet_name, schedule_details, owner FROM medicine_schedules;";
+    int rc = sqlite3_prepare_v2(db->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) { return -1; }
+    int count = 0;
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        const char* pet_name = (const char*)sqlite3_column_text(stmt, 0);
+        const char* details = (const char*)sqlite3_column_text(stmt, 1);
+        enqueue(queue, pet_name, details);
+        count++;
+    }
+    sqlite3_finalize(stmt);
+    return count;
+}
+
+// Load exercise routines into global exerciseStack
+int db_load_exercise_routines(Database* db, const char* owner) {
+    (void)owner; // owner currently not filtering
+    if (!db || !db->db) return 0;
+    // reset stack
+    extern ExerciseStack exerciseStack;
+    exerciseStack.top = -1;
+    sqlite3_stmt* stmt;
+    const char* sql = "SELECT pet_name, exercise_details FROM exercise_routines;";
+    int rc = sqlite3_prepare_v2(db->db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) { return -1; }
+    int count = 0;
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        const char* pet_name = (const char*)sqlite3_column_text(stmt, 0);
+        const char* details = (const char*)sqlite3_column_text(stmt, 1);
+        if (exerciseStack.top < MAX_ROUTINES - 1) {
+            exerciseStack.top++;
+            strncpy(exerciseStack.stack[exerciseStack.top].petName, pet_name, sizeof(exerciseStack.stack[exerciseStack.top].petName) - 1);
+            strncpy(exerciseStack.stack[exerciseStack.top].exercise, details, sizeof(exerciseStack.stack[exerciseStack.top].exercise) - 1);
+            count++;
+        }
+    }
+    sqlite3_finalize(stmt);
+    return count;
 }
 
 #endif // SQLITE3_HEADER_ONLY

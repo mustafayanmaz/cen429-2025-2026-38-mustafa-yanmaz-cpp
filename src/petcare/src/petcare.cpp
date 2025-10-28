@@ -382,6 +382,13 @@ void updatePet(Pet* petList, const char* name, const char* owner) {
             printf("Enter new age: ");
             scanf("%d", &newAge);
 
+            // Sync DB first if available
+            if (g_petcare_db) {
+                if (db_update_pet(g_petcare_db, petList->name, owner, newName, newType, newAge) != 0) {
+                    printf("[DATABASE] Warning: Could not update pet in database\n");
+                }
+            }
+
             // Securely wipe and free old data
             secure_str_free(petList->name);
             secure_str_free(petList->type);
@@ -409,8 +416,15 @@ void deletePet(Pet** petList, const char* name, const char* owner) {
     Pet* current = *petList;
     while (current) {
         if (strcmp(current->name, name) == 0 && strcmp(current->owner, owner) == 0) {
+            // Sync DB first if available
+            if (g_petcare_db) {
+                if (db_delete_pet(g_petcare_db, name, owner) != 0) {
+                    printf("[DATABASE] Warning: Could not delete pet in database\n");
+                }
+            }
             if (current->prev) {
-                current->prev->next = current->next;}
+                current->prev->next = current->next;
+            }
             else {
                 *petList = current->next;
             }
@@ -1266,6 +1280,10 @@ void updateFeedingSchedule(Queue* feedingQueue, const char* petName, const char*
             strcpy(current->scheduleDetails, newDetails);
             printf("Feeding schedule for '%s' updated successfully.\n", petName);
             found = 1;
+            // DB sync
+            if (g_petcare_db) {
+                db_update_feeding_schedule(g_petcare_db, petName, current->petName /* owner not tracked here */, newDetails);
+            }
             break;
         }
         current = current->next;
@@ -1296,6 +1314,9 @@ void deleteFeedingSchedule(Queue* feedingQueue, const char* petName) {
             feedingQueue->rear = NULL; 
         }
 
+        if (g_petcare_db) {
+            db_delete_feeding_schedule(g_petcare_db, petName, current->petName /* owner unknown */);
+        }
         free(current);
         printf("Feeding schedule for '%s' deleted successfully.\n", petName);
         return;
@@ -1308,7 +1329,9 @@ void deleteFeedingSchedule(Queue* feedingQueue, const char* petName) {
             if (current == feedingQueue->rear) {
                 feedingQueue->rear = previous; 
             }
-
+            if (g_petcare_db) {
+                db_delete_feeding_schedule(g_petcare_db, petName, current->petName /* owner unknown */);
+            }
             free(current);
             printf("Feeding schedule for '%s' deleted successfully.\n", petName);return;
         }
@@ -1383,6 +1406,9 @@ void updateMedicineSchedule(Queue* medicineQueue, const char* petName, const cha
             strcpy(current->scheduleDetails, newDetails);
             printf("Medicine schedule for '%s' updated successfully.\n", petName);
             found = 1;
+            if (g_petcare_db) {
+                db_update_medicine_schedule(g_petcare_db, petName, current->petName /* owner unknown */, newDetails);
+            }
             break;
         }
         current = current->next;
@@ -1412,7 +1438,9 @@ void deleteMedicineSchedule(Queue* medicineQueue, const char* petName) {
         if (medicineQueue->front == NULL) {
             medicineQueue->rear = NULL; 
         }
-
+        if (g_petcare_db) {
+            db_delete_medicine_schedule(g_petcare_db, petName, current->petName /* owner unknown */);
+        }
         free(current);
         printf("Medicine schedule for '%s' deleted successfully.\n", petName);
         return;
@@ -1425,7 +1453,9 @@ void deleteMedicineSchedule(Queue* medicineQueue, const char* petName) {
             if (current == medicineQueue->rear) {
                 medicineQueue->rear = previous; 
             }
-
+            if (g_petcare_db) {
+                db_delete_medicine_schedule(g_petcare_db, petName, current->petName /* owner unknown */);
+            }
             free(current);
             printf("Medicine schedule for '%s' deleted successfully.\n", petName);return;
         }
@@ -2008,16 +2038,25 @@ void addStrayAnimalToList(StrayAnimal** list, const char* type, const char* gend
  * @param newArrivalDate New arrival date.
  * @param newAge New age.
  */
-void updateStrayAnimal(StrayAnimal* list, int id,
+void updateStrayAnimal(
+    StrayAnimal* list,
+    int id,
     const char* newType,
     const char* newGender,
     const char* newArrivalDate,
-    int newAge)
+    int newAge
+)
 {
     StrayAnimal* current = list;
     while (current) {
         if (current->id == id) {
-            // Direkt güncelleme
+            // First sync DB if available
+            if (g_petcare_db) {
+                if (db_update_stray_animal(g_petcare_db, id, newType, newGender, newArrivalDate, newAge) != 0) {
+                    printf("[DATABASE] Warning: Could not update stray animal in database\n");
+                }
+            }
+            // Direct in-memory update
             strcpy(current->type, newType);
             strcpy(current->gender, newGender);
             strcpy(current->arrivalDate, newArrivalDate);
@@ -2041,6 +2080,12 @@ void deleteStrayAnimal(StrayAnimal** list, int id) {
     StrayAnimal* prev = NULL;
     while (current) {
         if (current->id == id) {
+            // First sync DB if available
+            if (g_petcare_db) {
+                if (db_delete_stray_animal(g_petcare_db, id) != 0) {
+                    printf("[DATABASE] Warning: Could not delete stray animal in database\n");
+                }
+            }
             if (prev == NULL) {
                 *list = current->next;
             }
@@ -2277,12 +2322,12 @@ void listAllAdoptedAnimals(AdoptedAnimal* list) {
 static void traverseBPlusNodeForBirthdays(BPlusNode* node, Pet* petList) {
     if (!node) return;
 
-    // Mevcut node’daki tüm key/value çiftlerini oku
+    // Mevcut node'daki tüm key/value çiftlerini oku
     for (int i = 0; i < node->count; i++) {
         int key = node->keys[i];
         int encodedDate = node->values[i];
 
-        // Pet’i bul
+        // Pet'i bul
         Pet* foundPet = findPetByName(petList, key);
         if (foundPet) {
             // Encoded date: YYYYMMDD format

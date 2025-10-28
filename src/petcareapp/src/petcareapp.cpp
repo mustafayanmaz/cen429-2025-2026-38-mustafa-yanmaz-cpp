@@ -17,6 +17,25 @@
 #include "assetProtection.h"
 #include "raspSecurity.h"
 
+extern "C" {
+int db_load_feeding_schedules(struct Database* db, struct Queue* queue);
+int db_load_medicine_schedules(struct Database* db, struct Queue* queue);
+int db_load_exercise_routines(struct Database* db, const char* owner);
+}
+
+// Simple safe integer input helper
+static int readInt(const char* prompt, int* out) {
+    char buf[128];
+    while (1) {
+        printf("%s", prompt);
+        if (scanf("%127s", buf) != 1) continue;
+        char* endptr = NULL;
+        long v = strtol(buf, &endptr, 10);
+        if (endptr && *endptr == '\0') { *out = (int)v; return 1; }
+        printf("Invalid number. Try again.\n");
+    }
+}
+
 #ifdef _WIN32
 /**
  * @brief Clears the console screen.
@@ -52,10 +71,7 @@ int getch() {
  */
 Queue* feedingQueue = NULL;
 
-/**
- * @brief Global database handle
- */
-Database* g_database = NULL;
+/* SQL-only: use global DB via get_petcare_database() from petcare */
 
 /**
  * @brief Menu structure used for CLI navigation.
@@ -286,9 +302,20 @@ void navigateUserAuthentication(Menu* authMenu, HashTable* userTable, int* isAut
                         }
                     }
                     
-                    printf("Press any key to continue...");
+                    // Set active user first
                     *isAuthenticated = 1;
                     strcpy(activeUser, username);
+                    
+                    // Load schedules and routines from DB into memory
+                    if (get_petcare_database()) {
+                        if (!feedingQueue) feedingQueue = createQueue();
+                        if (!medicineQueue) medicineQueue = createQueue();
+                        db_load_feeding_schedules(get_petcare_database(), feedingQueue);
+                        db_load_medicine_schedules(get_petcare_database(), medicineQueue);
+                        db_load_exercise_routines(get_petcare_database(), activeUser);
+                    }
+                    
+                    printf("Press any key to continue...");
                 }
                 else {
                     printf("Login failed! Invalid credentials or session error.\n");
@@ -316,13 +343,13 @@ void navigateUserAuthentication(Menu* authMenu, HashTable* userTable, int* isAut
                 addUser(userTable, username, password);
                 
                 // Also add to database if available
-                if (g_database) {
+                if (get_petcare_database()) {
                     // Get encrypted password from the added user
                     unsigned int index = hashFunction(username);
                     User* user = userTable->buckets[index];
                     while (user != NULL) {
                         if (strcmp(user->username, username) == 0) {
-                            if (db_add_user(g_database, username, user->encryptedPassword) == 0) {
+                            if (db_add_user(get_petcare_database(), username, user->encryptedPassword) == 0) {
                                 printf("[DATABASE] User saved to database\n");
                             } else {
                                 printf("[DATABASE] Warning: Could not save user to database\n");
@@ -346,17 +373,19 @@ void navigateUserAuthentication(Menu* authMenu, HashTable* userTable, int* isAut
                 CLEAR_SCREEN();
                 printf("Exiting program...\n");
                 logoutUserSession();
-                saveUsersToFile(userTable, "database");
                 freeHashTable(userTable);
                 
                 // Close database
-                if (g_database) {
-                    db_close(g_database);
+                if (get_petcare_database()) {
+                    close_petcare_database();
                     printf("[DATABASE] Database closed\n");
                 }
                 
                 // Shutdown RASP
                 if (g_rasp_initialized) {
+                    char status[512];
+                    rasp_get_status(status, sizeof(status));
+                    printf("\n[SECURITY] RASP Status:\n%s\n", status);
                     rasp_shutdown();
                     printf("[SECURITY] RASP protection shutdown complete\n");
                 }
@@ -417,15 +446,14 @@ void navigatePetsMenu(Menu * petsMenu, Pet * *petList, int isAuthenticated) {
                 scanf("%s", name);
                 printf("Enter pet's type: ");
                 scanf("%s", type);
-                printf("Enter pet's age: ");
-                scanf("%d", &age);
+                readInt("Enter pet's age: ", &age);
                 
                 // Add to in-memory list
                 addPet(petList, name, type, age, activeUser);
                 
                 // Also add to database if available
-                if (g_database) {
-                    if (db_add_pet(g_database, name, type, age, activeUser) == 0) {
+                if (get_petcare_database()) {
+                    if (db_add_pet(get_petcare_database(), name, type, age, activeUser) == 0) {
                         printf("[DATABASE] Pet saved to database\n");
                     } else {
                         printf("[DATABASE] Warning: Could not save pet to database\n");
@@ -454,8 +482,8 @@ void navigatePetsMenu(Menu * petsMenu, Pet * *petList, int isAuthenticated) {
                 deletePet(petList, name, activeUser);
                 
                 // Also delete from database if available
-                if (g_database) {
-                    if (db_delete_pet(g_database, name, activeUser) == 0) {
+                if (get_petcare_database()) {
+                    if (db_delete_pet(get_petcare_database(), name, activeUser) == 0) {
                         printf("[DATABASE] Pet deleted from database\n");
                     }
                 }
@@ -552,8 +580,8 @@ void navigateFeedingMenu(Menu * feedingMenu, Pet * petList) {
                 printf("Enter feeding schedule details: ");
                 scanf(" %[^\n]", scheduleDetails);
                 enqueue(feedingQueue, petName, scheduleDetails);
-                if (g_database) {
-                    db_add_feeding_schedule(g_database, petName, scheduleDetails, activeUser);
+                if (get_petcare_database()) {
+                    db_add_feeding_schedule(get_petcare_database(), petName, scheduleDetails, activeUser);
                 }
                 printf("Feeding schedule added! Press any key to return...");
                 getch();
@@ -566,8 +594,8 @@ void navigateFeedingMenu(Menu * feedingMenu, Pet * petList) {
                 printf("Enter new feeding schedule details: ");
                 scanf(" %[^\n]", newDetails);
                 updateFeedingSchedule(feedingQueue, petName, newDetails);
-                if (g_database) {
-                    db_update_feeding_schedule(g_database, petName, activeUser, newDetails);
+                if (get_petcare_database()) {
+                    db_update_feeding_schedule(get_petcare_database(), petName, activeUser, newDetails);
                 }
                 printf("Press any key to return...");
                 getch();
@@ -578,8 +606,8 @@ void navigateFeedingMenu(Menu * feedingMenu, Pet * petList) {
                 printf("Enter pet's name to delete the feeding schedule: ");
                 scanf("%s", petName);
                 deleteFeedingSchedule(feedingQueue, petName);
-                if (g_database) {
-                    db_delete_feeding_schedule(g_database, petName, activeUser);
+                if (get_petcare_database()) {
+                    db_delete_feeding_schedule(get_petcare_database(), petName, activeUser);
                 }
                 printf("Press any key to return...");
                 getch();
@@ -603,8 +631,8 @@ void navigateFeedingMenu(Menu * feedingMenu, Pet * petList) {
                 printf("Enter medicine schedule details: ");
                 scanf(" %[^\n]", scheduleDetails);
                 addMedicineSchedule(medicineQueue, petName, scheduleDetails);
-                if (g_database) {
-                    db_add_medicine_schedule(g_database, petName, scheduleDetails, activeUser);
+                if (get_petcare_database()) {
+                    db_add_medicine_schedule(get_petcare_database(), petName, scheduleDetails, activeUser);
                 }
                 printf("Press any key to return...");
                 getch();
@@ -617,8 +645,8 @@ void navigateFeedingMenu(Menu * feedingMenu, Pet * petList) {
                 printf("Enter new medicine schedule details: ");
                 scanf(" %[^\n]", newDetails);
                 updateMedicineSchedule(medicineQueue, petName, newDetails);
-                if (g_database) {
-                    db_update_medicine_schedule(g_database, petName, activeUser, newDetails);
+                if (get_petcare_database()) {
+                    db_update_medicine_schedule(get_petcare_database(), petName, activeUser, newDetails);
                 }
                 printf("Press any key to return...");
                 getch();
@@ -629,8 +657,8 @@ void navigateFeedingMenu(Menu * feedingMenu, Pet * petList) {
                 printf("Enter pet's name to delete the medicine schedule: ");
                 scanf("%s", petName);
                 deleteMedicineSchedule(medicineQueue, petName);
-                if (g_database) {
-                    db_delete_medicine_schedule(g_database, petName, activeUser);
+                if (get_petcare_database()) {
+                    db_delete_medicine_schedule(get_petcare_database(), petName, activeUser);
                 }
                 printf("Press any key to return...");
                 getch();
@@ -668,13 +696,13 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
     int selectedIndex = 0;
 
     static StrayAnimal* strayList = NULL;
-    if (g_database) {
-        db_load_all_stray_animals(g_database, &strayList);
+    if (get_petcare_database()) {
+        db_load_all_stray_animals(get_petcare_database(), &strayList);
     }
 
     static AdoptedAnimal* adoptedList = NULL;
-    if (g_database) {
-        db_load_all_adopted_animals(g_database, &adoptedList);
+    if (get_petcare_database()) {
+        db_load_all_adopted_animals(get_petcare_database(), &adoptedList);
     }
 
     while (1) {
@@ -722,13 +750,15 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
                     continue;
                 }
                 printf("Enter Birthday (day month year, e.g., 15 8 2020): ");
-                scanf("%d %d %d", &birthdayDay, &birthdayMonth, &birthdayYear);
+                readInt("Enter Birthday Day: ", &birthdayDay);
+                readInt("Enter Birthday Month: ", &birthdayMonth);
+                readInt("Enter Birthday Year: ", &birthdayYear);
                 if (birthdayTree == NULL) {
                     birthdayTree = createBPlusTree();
                 }
                 insertBirthday(birthdayTree, petName, birthdayDay, birthdayMonth, birthdayYear);
-                if (g_database) {
-                    db_add_birthday(g_database, petName, birthdayDay, birthdayMonth, birthdayYear, activeUser);
+                if (get_petcare_database()) {
+                    db_add_birthday(get_petcare_database(), petName, birthdayDay, birthdayMonth, birthdayYear, activeUser);
                 }
                 printf("Birthday recorded successfully! Press any key to return...");
                 getch();
@@ -743,12 +773,11 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
                 scanf("%s", gender);
                 printf("Enter arrival date (dd/mm/yyyy): ");
                 scanf("%s", arrivalDate);
-                printf("Enter age: ");
-                scanf("%d", &age);
+                readInt("Enter age: ", &age);
 
                 addStrayAnimalToList(&strayList, type, gender, arrivalDate, age);
-                if (g_database) {
-                    db_add_stray_animal(g_database, type, gender, arrivalDate, age);
+                if (get_petcare_database()) {
+                    db_add_stray_animal(get_petcare_database(), type, gender, arrivalDate, age);
                 }
                 printf("Stray animal added successfully! Press any key to continue...");
                 getch();
@@ -776,8 +805,8 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
                 scanf("%d", &newAge);
 
                 updateStrayAnimal(strayList, id, newType, newGender, newArrivalDate, newAge);
-                if (g_database) {
-                    db_update_stray_animal(g_database, id, newType, newGender, newArrivalDate, newAge);
+                if (get_petcare_database()) {
+                    db_update_stray_animal(get_petcare_database(), id, newType, newGender, newArrivalDate, newAge);
                 }
                 printf("Press any key to continue...");
                 getch();
@@ -789,8 +818,8 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
                 int id;
                 scanf("%d", &id);
                 deleteStrayAnimal(&strayList, id);
-                if (g_database) {
-                    db_delete_stray_animal(g_database, id);
+                if (get_petcare_database()) {
+                    db_delete_stray_animal(get_petcare_database(), id);
                 }
                 printf("Press any key to continue...");
                 getch();
@@ -829,8 +858,8 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
                 scanf("%s", adoptionDate);
 
                 adoptStrayAnimal(&strayList, activeUser, chosenID, newName, adoptionDate);
-                if (g_database) {
-                    db_adopt_stray_animal(g_database, chosenID, activeUser, adoptionDate);
+                if (get_petcare_database()) {
+                    db_adopt_stray_animal(get_petcare_database(), chosenID, activeUser, adoptionDate);
                 }
                 printf("Press any key to continue...");
                 getch();
@@ -839,8 +868,8 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
                 CLEAR_SCREEN();
                 free(adoptedList);
                 adoptedList = NULL;
-                if (g_database) {
-                    db_load_all_adopted_animals(g_database, &adoptedList);
+                if (get_petcare_database()) {
+                    db_load_all_adopted_animals(get_petcare_database(), &adoptedList);
                 }
                 listAllAdoptedAnimals(adoptedList);
                 printf("Press any key to continue...");
@@ -854,8 +883,12 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
             }
             else if (strcmp(adaptationMenu->items[selectedIndex], "List Pet Birthdays") == 0) {
                 CLEAR_SCREEN();
-                if (!birthdayTree) {
-                    birthdayTree = createBPlusTree();
+                // Reset tree to avoid duplicates
+                birthdayTree = createBPlusTree();
+                // Refresh from DB before listing
+                if (get_petcare_database()) {
+                    // Note: load into tree; pets list is not needed here
+                    db_load_all_birthdays(get_petcare_database(), birthdayTree, &petList);
                 }
                 listPetBirthdays(birthdayTree, petList);
                 printf("Press any key to continue...");
@@ -918,7 +951,8 @@ void navigateVetMenu(Menu * vetMenu, const char* activeUser, Pet * petList) {
                 printf("Enter pet's name: ");
                 scanf("%s", petName);
                 printf("Enter day and month (e.g., 15 11): ");
-                scanf("%d %d", &day, &month);
+                readInt("Enter day: ", &day);
+                readInt("Enter month: ", &month);
                 printf("Enter description: ");
                 scanf(" %[^\n]", description);
                 addAppointment(petName, description, day, month, activeUser, petList);
@@ -937,11 +971,12 @@ void navigateVetMenu(Menu * vetMenu, const char* activeUser, Pet * petList) {
                 scanf("%s", petName);
 
                 printf("Enter current day and month (e.g., 15 11): ");
-                scanf("%d %d", &oldDay, &oldMonth);
-
+                readInt("Enter current day: ", &oldDay);
+                readInt("Enter current month: ", &oldMonth);
                 printf("Enter new day and month (e.g., 20 11): ");
-                scanf("%d %d", &newDay, &newMonth);
-
+                readInt("Enter new day: ", &newDay);
+                readInt("Enter new month: ", &newMonth);
+                
                 printf("Enter new description: ");
                 scanf(" %[^\n]", newDescription);
 
@@ -960,7 +995,8 @@ void navigateVetMenu(Menu * vetMenu, const char* activeUser, Pet * petList) {
                 printf("Enter pet's name: ");
                 scanf("%s", petName);
                 printf("Enter day and month (e.g., 15 11): ");
-                scanf("%d %d", &day, &month);
+                readInt("Enter day: ", &day);
+                readInt("Enter month: ", &month);
                 cancelAppointment(petName, day, month, activeUser);
                 printf("Press any key to return...");
                 getch();
@@ -1041,8 +1077,8 @@ void navigateExerciseMenu(Menu * exerciseMenu, Pet * petList, char* activeUser) 
                 scanf(" %99[^\n]", exercise);
 
                 addExerciseRoutine(petName, exercise);
-                if (g_database) {
-                    db_add_exercise_routine(g_database, petName, exercise, activeUser);
+                if (get_petcare_database()) {
+                    db_add_exercise_routine(get_petcare_database(), petName, exercise, activeUser);
                 }
                 printf(" Press any key to return...");
                 getch();
@@ -1074,15 +1110,19 @@ void navigateExerciseMenu(Menu * exerciseMenu, Pet * petList, char* activeUser) 
                 printf("Enter grooming routine: ");
                 scanf(" %99[^\n]", exercise);
 
-                // Placeholder for grooming routine
-                // addGroomingRoutine(petName, exercise);
+                if (get_petcare_database()) {
+                    db_add_grooming_routine(get_petcare_database(), petName, exercise, activeUser);
+                }
                 printf(" Press any key to return...");
                 getch();
             }
             else if (strcmp(exerciseMenu->items[selectedIndex], "List Groomings") == 0) {
                 CLEAR_SCREEN();
-                // Placeholder for listing groomings
-                // listAllGroomings();
+                if (get_petcare_database()) {
+                    db_print_all_groomings(get_petcare_database());
+                } else {
+                    printf("No database available.\n");
+                }
                 printf("Press any key to return...");
                 getch();
             }
@@ -1137,11 +1177,11 @@ void aboutMenu(char text[]) {
 void navigateMainMenu(Menu * mainMenu, HashTable * userTable, int* isAuthenticated) {
     int selectedIndex = 0;
     static Pet* petList = NULL;
-    loadPetsFromFile(&petList, "database");
     
-    // Also load pets from database if available
-    if (g_database) {
-        int db_pet_count = db_load_all_pets(g_database, &petList);
+    // Load from database only (avoid file duplication)
+    if (get_petcare_database()) {
+        petList = NULL;
+        int db_pet_count = db_load_all_pets(get_petcare_database(), &petList);
         if (db_pet_count > 0) {
             printf("[DATABASE] Loaded %d pets from database\n", db_pet_count);
             printf("Press any key to continue...\n");
@@ -1158,6 +1198,15 @@ void navigateMainMenu(Menu * mainMenu, HashTable * userTable, int* isAuthenticat
         // Increment CFI counter each iteration
         if (g_rasp_initialized) {
             rasp_increment_cfi_counter(100);
+        }
+        
+        // Refresh queues/stack from DB at the start of each loop (keeps views consistent)
+        if (get_petcare_database()) {
+            if (!feedingQueue) feedingQueue = createQueue();
+            if (!medicineQueue) medicineQueue = createQueue();
+            db_load_feeding_schedules(get_petcare_database(), feedingQueue);
+            db_load_medicine_schedules(get_petcare_database(), medicineQueue);
+            db_load_exercise_routines(get_petcare_database(), activeUser);
         }
         
         // Periodic security check every iteration
@@ -1230,16 +1279,12 @@ void navigateMainMenu(Menu * mainMenu, HashTable * userTable, int* isAuthenticat
                 }
                 
                 logoutUserSession();
-                savePetsToFile(petList, "database");
-                saveUsersToFile(userTable, "database");
-                saveAppointmentsToFile();
-                saveAppointmentsToFile();
                 freePetList(petList);
                 freeHashTable(userTable);
                 
                 // Close database
-                if (g_database) {
-                    db_close(g_database);
+                if (get_petcare_database()) {
+                    close_petcare_database();
                     printf("[DATABASE] Database closed\n");
                 }
                 
@@ -1293,15 +1338,10 @@ int main(int argc, char* argv[]) {
     
     // Initialize database
     printf("\nInitializing database...\n");
-    g_database = db_init("petcare.db", NULL);
-    if (g_database) {
-        if (db_create_tables(g_database) == 0) {
-            printf("[DATABASE] Database initialized successfully\n");
-        } else {
-            printf("[DATABASE] Warning: Could not create tables\n");
-        }
+    if (init_petcare_database("petcare.db") == 0) {
+        printf("[DATABASE] Database initialized successfully\n");
     } else {
-        printf("[DATABASE] Warning: Database initialization failed, using fallback file system\n");
+        printf("[DATABASE] Warning: Database initialization failed\n");
     }
     
     printf("\n[SECURITY] All security features initialized\n");
@@ -1326,8 +1366,8 @@ int main(int argc, char* argv[]) {
         if (medicineQueue) free(medicineQueue);
         
         // Close database
-        if (g_database) {
-            db_close(g_database);
+        if (get_petcare_database()) {
+            close_petcare_database();
             printf("[TEST MODE] Database closed\n");
         }
         
@@ -1352,8 +1392,8 @@ int main(int argc, char* argv[]) {
     loadUsersFromFile(userTable, "database");
     
     // Also load users from database if available
-    if (g_database) {
-        int db_user_count = db_load_all_users(g_database, userTable);
+    if (get_petcare_database()) {
+        int db_user_count = db_load_all_users(get_petcare_database(), userTable);
         if (db_user_count > 0) {
             printf("[DATABASE] Loaded %d users from database\n", db_user_count);
         }

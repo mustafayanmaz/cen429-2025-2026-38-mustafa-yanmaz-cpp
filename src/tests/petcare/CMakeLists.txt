@@ -42,6 +42,13 @@ install(TARGETS ${EXENAME}
 
 # Discover tests using CTest
 include(GoogleTest)
-gtest_discover_tests(${EXENAME})
+# Temporarily disable test discovery to avoid runtime errors
+# gtest_discover_tests(${EXENAME}
+#     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+#     PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+# )
+
+# Add manual test registration instead
+add_test(NAME ${EXENAME} COMMAND ${EXENAME} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 		
 message(STATUS "[${ROOT}/${TESTNAME}] Added target: ${EXENAME}")

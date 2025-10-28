@@ -465,6 +465,49 @@ int db_update_exercise_routine(Database* db, const char* pet_name, const char* o
  */
 int db_delete_exercise_routine(Database* db, const char* pet_name, const char* owner);
 
+// Loaders from DB into memory structures
+int db_load_feeding_schedules(Database* db, struct Queue* queue);
+int db_load_medicine_schedules(Database* db, struct Queue* queue);
+int db_load_exercise_routines(Database* db, const char* owner);
+
+// ============================================================================
+// Grooming Routine Functions
+// ============================================================================
+
+/**
+ * @brief Add a grooming routine to the database
+ * @param db Database handle
+ * @param pet_name Pet name
+ * @param grooming_details Grooming details
+ * @param owner Owner username
+ * @return 0 on success, non-zero on failure
+ */
+int db_add_grooming_routine(Database* db, const char* pet_name, const char* grooming_details, const char* owner);
+
+/**
+ * @brief Update a grooming routine in the database
+ * @param db Database handle
+ * @param pet_name Pet name
+ * @param owner Owner username
+ * @param new_details New grooming details
+ * @return 0 on success, non-zero on failure
+ */
+int db_update_grooming_routine(Database* db, const char* pet_name, const char* owner, const char* new_details);
+
+/**
+ * @brief Delete a grooming routine from the database
+ * @param db Database handle
+ * @param pet_name Pet name
+ * @param owner Owner username
+ * @return 0 on success, non-zero on failure
+ */
+int db_delete_grooming_routine(Database* db, const char* pet_name, const char* owner);
+
+/**
+ * @brief Print all grooming routines to stdout
+ */
+int db_print_all_groomings(Database* db);
+
 #ifdef __cplusplus
 }
 #endif

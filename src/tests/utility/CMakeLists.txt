@@ -31,9 +31,6 @@ target_include_directories(${EXENAME} PUBLIC
 # Add any dependencies or compile options specific to aka5g tests
 target_link_libraries(${EXENAME} PRIVATE utility gtest gtest_main)
 
-# Register the test with CTest
-add_test(NAME ${EXENAME} COMMAND ${EXENAME})
-
 install(TARGETS ${EXENAME}
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib
@@ -41,6 +38,13 @@ install(TARGETS ${EXENAME}
 
 # Discover tests using CTest
 include(GoogleTest)
-gtest_discover_tests(${EXENAME})
+# Temporarily disable test discovery to avoid runtime errors
+# gtest_discover_tests(${EXENAME}
+#     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+#     PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+# )
+
+# Add manual test registration instead
+add_test(NAME ${EXENAME} COMMAND ${EXENAME} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 		
 message(STATUS "[${ROOT}/${TESTNAME}] Added target: ${EXENAME}")
