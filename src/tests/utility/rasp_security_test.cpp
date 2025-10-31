@@ -383,7 +383,7 @@ TEST_F(RASPSecurityTest, PeriodicHookScanning) {
         
         // Verify hook info structure if hooks detected
         for (int i = 0; i < hook_count; i++) {
-            EXPECT_NE(hooks[i].function_addr, nullptr) 
+            EXPECT_NE(hooks[i].target_address, nullptr) 
                 << "Hook " << i << " should have valid function address";
             EXPECT_GT(strlen(hooks[i].function_name), 0) 
                 << "Hook " << i << " should have function name";
@@ -437,17 +437,11 @@ TEST_F(RASPSecurityTest, HookDetectionWithLogging) {
     
     // Log details for each detected hook (simulating petcareapp.cpp behavior)
     for (int i = 0; i < hook_count; i++) {
-        EXPECT_NE(hooks[i].function_addr, nullptr);
+        EXPECT_NE(hooks[i].target_address, nullptr);
         EXPECT_GT(strlen(hooks[i].function_name), 0);
         
-        // Verify hook type is valid
-        bool valid_type = (hooks[i].hook_type == HOOK_TYPE_INLINE ||
-                          hooks[i].hook_type == HOOK_TYPE_IAT ||
-                          hooks[i].hook_type == HOOK_TYPE_UNKNOWN);
-        EXPECT_TRUE(valid_type) << "Hook type should be valid";
-        
         // Verify timestamp is reasonable
-        EXPECT_GT(hooks[i].detected_at, 0) << "Detection timestamp should be set";
+        EXPECT_GT(hooks[i].detection_time, 0) << "Detection timestamp should be set";
     }
 }
 
