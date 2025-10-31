@@ -115,6 +115,38 @@ static uint64_t rasp_get_cfi_counter_value(uint64_t counter_id) {
 }
 
 /**
+ * @brief Application checksum for self-integrity verification
+ */
+static CodeBlockChecksum g_app_checksum;
+static int g_checksum_initialized = 0;
+
+/**
+ * @brief Verify application integrity using checksum
+ * @return 0 if valid, -1 if tampered
+ */
+static int verify_application_integrity() {
+    if (!g_checksum_initialized) {
+        // Calculate checksum for main function code block
+        extern int main(int argc, char* argv[]);
+        // Use a safe code section (first 4KB of main)
+        if (rasp_calculate_checksum((void*)main, 4096, &g_app_checksum) != RASP_SUCCESS) {
+            printf("[SECURITY] Failed to calculate application checksum\n");
+            return -1;
+        }
+        g_checksum_initialized = 1;
+        printf("[SECURITY] Application checksum initialized\n");
+    }
+    
+    // Verify checksum
+    if (rasp_verify_checksum(&g_app_checksum) != RASP_SUCCESS) {
+        printf("[SECURITY] ERROR: Application integrity violation detected!\n");
+        return -1;
+    }
+    
+    return 0;
+}
+
+/**
  * @brief Initialize RASP security system
  */
 static void initialize_rasp_security() {
@@ -136,6 +168,12 @@ static void initialize_rasp_security() {
     if (rasp_init(&g_raspConfig) == RASP_SUCCESS) {
         printf("[SECURITY] RASP protection initialized successfully\n");
         g_rasp_initialized = 1;
+        
+        // Verify application integrity at startup
+        if (verify_application_integrity() != 0) {
+            printf("[SECURITY] CRITICAL: Application integrity check failed - terminating\n");
+            exit(1);
+        }
         
         // Perform initial security check
         int result = rasp_comprehensive_check();
@@ -1211,10 +1249,32 @@ void navigateMainMenu(Menu * mainMenu, HashTable * userTable, int* isAuthenticat
         
         // Periodic security check every iteration
         if (g_rasp_initialized && selectedIndex % 10 == 0) {
+            // Verify application integrity
+            if (verify_application_integrity() != 0) {
+                printf("\n[SECURITY] CRITICAL: Runtime integrity violation - terminating\n");
+                exit(1);
+            }
+            
+            // Detect tampering
             TamperInfo tamper_info;
             if (rasp_detect_tampering(&tamper_info) != RASP_SUCCESS) {
                 printf("\n[SECURITY] Tampering detected - terminating\n");
                 rasp_respond_to_tamper(&tamper_info, RASP_ACTION_TERMINATE);
+            }
+            
+            // Scan for hooks every 10 iterations
+            HookInfo hooks[5];
+            int hook_count = rasp_scan_all_hooks(hooks, 5);
+            if (hook_count > 0) {
+                printf("\n[SECURITY] WARNING: %d hook(s) detected!\n", hook_count);
+                for (int i = 0; i < hook_count && i < 5; i++) {
+                    printf("[SECURITY] Hook at %p -> %p (%s)\n", 
+                           hooks[i].target_address, 
+                           hooks[i].hook_address,
+                           hooks[i].function_name);
+                }
+                // In production, you might want to terminate here
+                // exit(1);
             }
         }
         CLEAR_SCREEN();

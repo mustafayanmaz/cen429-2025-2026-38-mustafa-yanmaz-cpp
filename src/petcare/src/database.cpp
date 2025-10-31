@@ -7,6 +7,7 @@
 #include "petcare.h"
 #include "secureMemory.h"
 #include "whiteboxCrypto.h"
+#include "assetProtection.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -80,9 +81,37 @@ static int encrypt_database_page(void* pCtx, int nPage, unsigned char* pData, in
 static int decrypt_database_page(void* pCtx, int nPage, unsigned char* pData, int nData);
 
 /**
- * @brief Encryption key for database (stored obfuscated)
+ * @brief Obfuscated database encryption key
+ * Security: Key is obfuscated in memory and revealed only when needed
  */
-static const char* DB_ENCRYPTION_KEY = "PetCare2025DatabaseEncryption!@#$";
+// Obfuscated encryption key - will be revealed at runtime
+static ObfuscatedString g_db_encryption_key_obf;
+static int g_db_key_initialized = 0;
+
+/**
+ * @brief Get the database encryption key (securely revealed from obfuscated storage)
+ * @param output Buffer to store the key (must be at least 64 bytes)
+ * @return 0 on success, -1 on failure
+ */
+static int get_db_encryption_key(char* output, size_t output_size) {
+    if (!output || output_size < 64) return -1;
+    
+    // Initialize obfuscated key on first call
+    if (!g_db_key_initialized) {
+        const char* original_key = "PetCare2025DatabaseEncryption!@#$";
+        if (create_obfuscated_string(original_key, &g_db_encryption_key_obf) != 0) {
+            return -1;
+        }
+        g_db_key_initialized = 1;
+    }
+    
+    // Reveal the key
+    if (reveal_obfuscated_string(&g_db_encryption_key_obf, output, output_size) != 0) {
+        return -1;
+    }
+    
+    return 0;
+}
 
 /**
  * @brief Initialize the database connection

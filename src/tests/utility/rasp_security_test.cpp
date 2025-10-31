@@ -43,6 +43,90 @@ protected:
 // CHECKSUM VERIFICATION TESTS
 // ============================================================================
 
+/**
+ * @brief Test application integrity verification workflow
+ */
+TEST_F(RASPSecurityTest, ApplicationIntegrityVerification) {
+    // Simulate main function code block
+    const char* mock_main_code = 
+        "int main(int argc, char* argv[]) {\n"
+        "    initialize_security();\n"
+        "    return run_application();\n"
+        "}\n";
+    
+    CodeBlockChecksum app_checksum;
+    
+    // Phase 1: Initial checksum calculation (startup)
+    ASSERT_EQ(rasp_calculate_checksum(mock_main_code, strlen(mock_main_code), &app_checksum), 
+              RASP_SUCCESS) << "Initial checksum calculation should succeed";
+    
+    EXPECT_GT(app_checksum.verification_count, 0) << "Verification count should be initialized";
+    EXPECT_NE(app_checksum.checksum_crc32, 0) << "CRC32 should be calculated";
+    
+    // Phase 2: Verify integrity (runtime check)
+    EXPECT_EQ(rasp_verify_checksum(&app_checksum), RASP_SUCCESS) 
+        << "Integrity verification should pass for unmodified code";
+    
+    // Phase 3: Simulate code modification (tampering)
+    char* tampered_code = strdup(mock_main_code);
+    tampered_code[10] = 'X'; // Modify code
+    
+    CodeBlockChecksum tampered_checksum;
+    rasp_calculate_checksum(tampered_code, strlen(tampered_code), &tampered_checksum);
+    
+    // Original checksum should fail when verified against tampered code
+    CodeBlockChecksum verification_checksum = app_checksum;
+    verification_checksum.code_start = (void*)tampered_code;
+    
+    EXPECT_NE(rasp_verify_checksum(&verification_checksum), RASP_SUCCESS)
+        << "Integrity verification should fail for modified code";
+    
+    free(tampered_code);
+}
+
+/**
+ * @brief Test periodic integrity checks
+ */
+TEST_F(RASPSecurityTest, PeriodicIntegrityChecks) {
+    const char* code = "void critical_function() { secure_operation(); }";
+    CodeBlockChecksum checksum;
+    
+    // Initial calculation
+    ASSERT_EQ(rasp_calculate_checksum(code, strlen(code), &checksum), RASP_SUCCESS);
+    
+    // Simulate multiple periodic checks (like every 10 iterations in main loop)
+    for (int i = 0; i < 10; i++) {
+        EXPECT_EQ(rasp_verify_checksum(&checksum), RASP_SUCCESS)
+            << "Periodic check #" << i << " should pass";
+    }
+    
+    // Verification count should increase
+    EXPECT_GT(checksum.verification_count, 0);
+}
+
+/**
+ * @brief Test checksum with different code block sizes
+ */
+TEST_F(RASPSecurityTest, ChecksumDifferentSizes) {
+    // Small block (like a single function)
+    const char* small_code = "int add(int a, int b) { return a + b; }";
+    CodeBlockChecksum small_checksum;
+    EXPECT_EQ(rasp_calculate_checksum(small_code, strlen(small_code), &small_checksum), 
+              RASP_SUCCESS);
+    
+    // Large block (like 4KB of main function - real scenario)
+    char large_code[4096];
+    memset(large_code, 'A', sizeof(large_code) - 1);
+    large_code[4095] = '\0';
+    CodeBlockChecksum large_checksum;
+    EXPECT_EQ(rasp_calculate_checksum(large_code, 4096, &large_checksum), 
+              RASP_SUCCESS);
+    
+    // Verify both
+    EXPECT_EQ(rasp_verify_checksum(&small_checksum), RASP_SUCCESS);
+    EXPECT_EQ(rasp_verify_checksum(&large_checksum), RASP_SUCCESS);
+}
+
 TEST_F(RASPSecurityTest, CalculateChecksumValidInput) {
     const char* code = "This is a test code block for checksum calculation";
     CodeBlockChecksum checksum;
@@ -283,6 +367,88 @@ TEST_F(RASPSecurityTest, ScanAllHooks) {
     int count = rasp_scan_all_hooks(hooks, RASP_MAX_HOOKS);
     EXPECT_GE(count, 0);
     EXPECT_LE(count, (int)RASP_MAX_HOOKS);
+}
+
+/**
+ * @brief Test periodic hook scanning (runtime monitoring)
+ */
+TEST_F(RASPSecurityTest, PeriodicHookScanning) {
+    // Simulate periodic scanning (like every 10 iterations in main loop)
+    for (int iteration = 0; iteration < 5; iteration++) {
+        HookInfo hooks[5];
+        int hook_count = rasp_scan_all_hooks(hooks, 5);
+        
+        EXPECT_GE(hook_count, 0) << "Iteration " << iteration << " should return valid count";
+        EXPECT_LE(hook_count, 5) << "Hook count should not exceed buffer size";
+        
+        // Verify hook info structure if hooks detected
+        for (int i = 0; i < hook_count; i++) {
+            EXPECT_NE(hooks[i].function_addr, nullptr) 
+                << "Hook " << i << " should have valid function address";
+            EXPECT_GT(strlen(hooks[i].function_name), 0) 
+                << "Hook " << i << " should have function name";
+        }
+    }
+}
+
+/**
+ * @brief Test runtime monitoring integration
+ */
+TEST_F(RASPSecurityTest, RuntimeMonitoringIntegration) {
+    // Simulate application loop with security checks
+    const int loop_iterations = 100;
+    int integrity_checks = 0;
+    int hook_scans = 0;
+    
+    for (int i = 0; i < loop_iterations; i++) {
+        // Every 10 iterations, perform security checks (like in petcareapp.cpp)
+        if (i % 10 == 0) {
+            // Check 1: Code integrity (simulated)
+            const char* code = "main_loop_code";
+            CodeBlockChecksum checksum;
+            if (rasp_calculate_checksum(code, strlen(code), &checksum) == RASP_SUCCESS) {
+                if (rasp_verify_checksum(&checksum) == RASP_SUCCESS) {
+                    integrity_checks++;
+                }
+            }
+            
+            // Check 2: Hook detection
+            HookInfo hooks[5];
+            int hook_count = rasp_scan_all_hooks(hooks, 5);
+            if (hook_count >= 0) {
+                hook_scans++;
+            }
+        }
+    }
+    
+    // Verify monitoring occurred
+    EXPECT_GT(integrity_checks, 0) << "Should perform integrity checks";
+    EXPECT_GT(hook_scans, 0) << "Should perform hook scans";
+    EXPECT_EQ(integrity_checks, 10) << "Should check integrity every 10 iterations";
+    EXPECT_EQ(hook_scans, 10) << "Should scan hooks every 10 iterations";
+}
+
+/**
+ * @brief Test hook detection with detailed logging
+ */
+TEST_F(RASPSecurityTest, HookDetectionWithLogging) {
+    HookInfo hooks[10];
+    int hook_count = rasp_scan_all_hooks(hooks, 10);
+    
+    // Log details for each detected hook (simulating petcareapp.cpp behavior)
+    for (int i = 0; i < hook_count; i++) {
+        EXPECT_NE(hooks[i].function_addr, nullptr);
+        EXPECT_GT(strlen(hooks[i].function_name), 0);
+        
+        // Verify hook type is valid
+        bool valid_type = (hooks[i].hook_type == HOOK_TYPE_INLINE ||
+                          hooks[i].hook_type == HOOK_TYPE_IAT ||
+                          hooks[i].hook_type == HOOK_TYPE_UNKNOWN);
+        EXPECT_TRUE(valid_type) << "Hook type should be valid";
+        
+        // Verify timestamp is reasonable
+        EXPECT_GT(hooks[i].detected_at, 0) << "Detection timestamp should be set";
+    }
 }
 
 TEST_F(RASPSecurityTest, ProtectFunction) {

@@ -86,6 +86,78 @@ TEST_F(AssetProtectionTest, ObfuscatedString_TamperDetection) {
 }
 
 /**
+ * @brief Test database encryption key obfuscation (real-world scenario)
+ */
+TEST_F(AssetProtectionTest, DatabaseEncryptionKey_Obfuscation) {
+    // Simulate the database encryption key storage
+    const char* db_key = "PetCare2025DatabaseEncryption!@#$";
+    ObfuscatedString obf_key;
+    
+    // Obfuscate the key
+    ASSERT_EQ(create_obfuscated_string(db_key, &obf_key), 0);
+    
+    // Verify it's not stored in plaintext
+    EXPECT_NE(memcmp(obf_key.data, db_key, strlen(db_key)), 0) 
+        << "Key should be obfuscated, not plaintext";
+    
+    // Verify integrity
+    EXPECT_EQ(verify_obfuscated_string(&obf_key), 1) 
+        << "Obfuscated key should pass integrity check";
+    
+    // Reveal for use (simulating get_db_encryption_key)
+    char revealed_key[256];
+    ASSERT_EQ(reveal_obfuscated_string(&obf_key, revealed_key, sizeof(revealed_key)), 0);
+    EXPECT_STREQ(revealed_key, db_key) << "Revealed key should match original";
+    
+    // Verify tampering detection
+    obf_key.data[0] ^= 0xFF;
+    char tampered_reveal[256];
+    EXPECT_NE(reveal_obfuscated_string(&obf_key, tampered_reveal, sizeof(tampered_reveal)), 0)
+        << "Tampering should be detected";
+    
+    // Clean up
+    secure_wipe(revealed_key, sizeof(revealed_key));
+}
+
+/**
+ * @brief Test obfuscated string lifecycle (create, use, destroy)
+ */
+TEST_F(AssetProtectionTest, ObfuscatedString_Lifecycle) {
+    const char* secret = "LifecycleTestSecret123";
+    ObfuscatedString obf;
+    
+    // Phase 1: Creation
+    ASSERT_EQ(create_obfuscated_string(secret, &obf), 0);
+    EXPECT_GT(obf.length, 0);
+    EXPECT_GT(obf.checksum, 0);
+    
+    // Phase 2: Multiple accesses
+    for (int i = 0; i < 5; i++) {
+        char revealed[256];
+        ASSERT_EQ(reveal_obfuscated_string(&obf, revealed, sizeof(revealed)), 0);
+        EXPECT_STREQ(revealed, secret) << "Iteration " << i << " should reveal correct value";
+        secure_wipe(revealed, sizeof(revealed));
+    }
+    
+    // Phase 3: Verify integrity still intact
+    EXPECT_EQ(verify_obfuscated_string(&obf), 1);
+    
+    // Phase 4: Destruction (simulate secure wipe)
+    secure_wipe(&obf, sizeof(obf));
+    
+    // After wipe, structure should be zeroed
+    int all_zero = 1;
+    uint8_t* ptr = (uint8_t*)&obf;
+    for (size_t i = 0; i < sizeof(obf); i++) {
+        if (ptr[i] != 0) {
+            all_zero = 0;
+            break;
+        }
+    }
+    EXPECT_EQ(all_zero, 1) << "Obfuscated string should be wiped after destruction";
+}
+
+/**
  * @brief Test static key derivation
  */
 TEST_F(AssetProtectionTest, StaticKey_Derivation) {
