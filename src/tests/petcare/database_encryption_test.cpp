@@ -108,6 +108,25 @@ TEST_F(DatabaseEncryptionTest, MultipleConnectionsWithSameKey) {
 }
 
 /**
+ * @brief Temp file cleanup and encrypted container existence
+ */
+TEST_F(DatabaseEncryptionTest, TempCleanupAndEncContainer) {
+    db = db_init("test_petcare.db", "k");
+#ifndef SQLITE3_HEADER_ONLY
+    ASSERT_NE(db, nullptr);
+    db_create_tables(db);
+    db_close(db); db = nullptr;
+    // After close, plaintext temp should be gone, .enc should exist
+    FILE* ftmp = fopen("test_petcare.db.tmp.sqlite", "rb");
+    EXPECT_TRUE(ftmp == nullptr);
+    if (ftmp) fclose(ftmp);
+    FILE* fenc = fopen("test_petcare.db.enc", "rb");
+    EXPECT_TRUE(fenc != nullptr);
+    if (fenc) fclose(fenc);
+#endif
+}
+
+/**
  * @brief Test key revelation and secure wiping
  */
 TEST_F(DatabaseEncryptionTest, KeyRevelationAndWiping) {

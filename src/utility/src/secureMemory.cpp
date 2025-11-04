@@ -4,6 +4,7 @@
  */
 
 #include "secureMemory.h"
+#include "sha256.h"
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -12,7 +13,9 @@
 // Platform-specific includes for memory locking
 #ifdef _WIN32
 #include <windows.h>
-#else
+#include <wincrypt.h>
+#endif
+#ifndef _WIN32
 #include <sys/mman.h>
 #include <unistd.h>
 #endif
@@ -133,6 +136,76 @@ static uint32_t xorshift128(void) {
 }
 
 /**
+ * @brief Try to fill a buffer with OS-provided CSPRNG bytes (Windows/Linux)
+ * @return 0 on success, -1 on failure
+ */
+static int try_os_random(unsigned char* buffer, size_t size) {
+    if (buffer == NULL || size == 0) {
+        return -1;
+    }
+#ifdef _WIN32
+    // 1) Try BCryptGenRandom from bcrypt.dll (no compile-time link needed)
+    HMODULE hBcrypt = LoadLibraryA("bcrypt.dll");
+    if (hBcrypt) {
+        typedef LONG (WINAPI *BCryptGenRandomFn)(void*, PUCHAR, ULONG, ULONG);
+        BCryptGenRandomFn pBCryptGenRandom = (BCryptGenRandomFn)GetProcAddress(hBcrypt, "BCryptGenRandom");
+        if (pBCryptGenRandom) {
+            // Use system-preferred RNG
+            if (pBCryptGenRandom(NULL, (PUCHAR)buffer, (ULONG)size, 0) == 0) {
+                FreeLibrary(hBcrypt);
+                return 0;
+            }
+        }
+        FreeLibrary(hBcrypt);
+    }
+
+    // 2) Try RtlGenRandom (SystemFunction036) from advapi32.dll
+    HMODULE hAdvapi = LoadLibraryA("advapi32.dll");
+    if (hAdvapi) {
+        typedef BOOLEAN (APIENTRY *RtlGenRandomFn)(PVOID, ULONG);
+        RtlGenRandomFn pRtlGenRandom = (RtlGenRandomFn)GetProcAddress(hAdvapi, "SystemFunction036");
+        if (pRtlGenRandom) {
+            if (pRtlGenRandom(buffer, (ULONG)size)) {
+                FreeLibrary(hAdvapi);
+                return 0;
+            }
+        }
+        FreeLibrary(hAdvapi);
+    }
+
+    // 3) Try legacy CryptoAPI CryptGenRandom
+    typedef BOOL (WINAPI *CryptAcquireContextAFn)(HCRYPTPROV*, LPCSTR, LPCSTR, DWORD, DWORD);
+    typedef BOOL (WINAPI *CryptGenRandomFn)(HCRYPTPROV, DWORD, BYTE*);
+    typedef BOOL (WINAPI *CryptReleaseContextFn)(HCRYPTPROV, DWORD);
+    CryptAcquireContextAFn pCryptAcquireContextA = (CryptAcquireContextAFn)GetProcAddress(hAdvapi, "CryptAcquireContextA");
+    CryptGenRandomFn pCryptGenRandom = (CryptGenRandomFn)GetProcAddress(hAdvapi, "CryptGenRandom");
+    CryptReleaseContextFn pCryptReleaseContext = (CryptReleaseContextFn)GetProcAddress(hAdvapi, "CryptReleaseContext");
+    if (pCryptAcquireContextA && pCryptGenRandom && pCryptReleaseContext) {
+        HCRYPTPROV hProv = 0;
+        if (pCryptAcquireContextA(&hProv, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) {
+            BOOL ok = pCryptGenRandom(hProv, (DWORD)size, (BYTE*)buffer);
+            pCryptReleaseContext(hProv, 0);
+            if (ok) {
+                FreeLibrary(hAdvapi);
+                return 0;
+            }
+        }
+    }
+
+    return -1;
+#else
+    // On POSIX, try reading from /dev/urandom
+    FILE* f = fopen("/dev/urandom", "rb");
+    if (f) {
+        size_t readn = fread(buffer, 1, size, f);
+        fclose(f);
+        if (readn == size) return 0;
+    }
+    return -1;
+#endif
+}
+
+/**
  * @brief Initialize PRNG with entropy
  */
 static void init_prng(void) {
@@ -175,7 +248,12 @@ int secure_generate_key(unsigned char* key) {
     
     init_prng();
     
-    // Generate random bytes
+    // First try OS CSPRNG
+    if (try_os_random(key, SECURE_KEY_SIZE) == 0) {
+        return 0;
+    }
+
+    // Fallback: xorshift-based PRNG (non-cryptographic)
     for (size_t i = 0; i < SECURE_KEY_SIZE; i += 4) {
         uint32_t rand_val = xorshift128();
         size_t remaining = SECURE_KEY_SIZE - i;
@@ -196,7 +274,12 @@ int secure_generate_iv(unsigned char* iv) {
     
     init_prng();
     
-    // Generate random bytes
+    // First try OS CSPRNG
+    if (try_os_random(iv, SECURE_IV_SIZE) == 0) {
+        return 0;
+    }
+
+    // Fallback: xorshift-based PRNG (non-cryptographic)
     for (size_t i = 0; i < SECURE_IV_SIZE; i += 4) {
         uint32_t rand_val = xorshift128();
         size_t remaining = SECURE_IV_SIZE - i;
@@ -215,9 +298,13 @@ int secure_random_bytes(unsigned char* buffer, size_t size) {
         return -1;
     }
     
-    init_prng();
+    // Prefer OS CSPRNG
+    if (try_os_random(buffer, size) == 0) {
+        return 0;
+    }
     
-    // Generate random bytes
+    // Fallback: seeded PRNG
+    init_prng();
     for (size_t i = 0; i < size; i += 4) {
         uint32_t rand_val = xorshift128();
         size_t remaining = size - i;
@@ -330,42 +417,8 @@ void secure_decrypt_inplace(unsigned char* data, size_t size,
 }
 
 /**
- * @brief HMAC-SHA256-like function for PBKDF2
- */
-static void simple_hmac(const unsigned char* key, size_t key_len,
-                       const unsigned char* message, size_t msg_len,
-                       unsigned char* output) {
-    // Simplified HMAC for key derivation
-    // In production, use proper HMAC-SHA256
-    unsigned char temp[64];
-    memset(temp, 0, sizeof(temp));
-    
-    // Mix key with message
-    for (size_t i = 0; i < key_len && i < 64; i++) {
-        temp[i] = key[i];
-    }
-    
-    // Simple mixing function
-    for (size_t i = 0; i < msg_len; i++) {
-        temp[i % 64] ^= message[i];
-    }
-    
-    // Generate output using stream cipher
-    unsigned char simple_key[32];
-    unsigned char simple_iv[16];
-    memcpy(simple_key, temp, 32);
-    memcpy(simple_iv, temp + 32, 16);
-    
-    memset(output, 0, SECURE_KEY_SIZE);
-    secure_encrypt_inplace(output, SECURE_KEY_SIZE, simple_key, simple_iv);
-    
-    secure_wipe(temp, sizeof(temp));
-    secure_wipe(simple_key, sizeof(simple_key));
-    secure_wipe(simple_iv, sizeof(simple_iv));
-}
-
-/**
- * @brief Derives an encryption key from a password using PBKDF2-like algorithm
+ * @brief Derives an encryption key using PBKDF2-HMAC-SHA256
+ * Generates SECURE_KEY_SIZE (32) bytes using one block (block index = 1)
  */
 int secure_derive_key(const char* password, size_t password_len,
                      const unsigned char* salt, size_t salt_len,
@@ -373,29 +426,45 @@ int secure_derive_key(const char* password, size_t password_len,
     if (password == NULL || key == NULL || iterations < 1) {
         return -1;
     }
-    
-    unsigned char temp[SECURE_KEY_SIZE];
-    unsigned char prev[SECURE_KEY_SIZE];
-    
-    // Initial round
-    simple_hmac((const unsigned char*)password, password_len, salt, salt_len, prev);
-    memcpy(key, prev, SECURE_KEY_SIZE);
-    
-    // Iterate
-    for (int i = 1; i < iterations; i++) {
-        simple_hmac((const unsigned char*)password, password_len, prev, SECURE_KEY_SIZE, temp);
-        
-        // XOR with accumulated result
-        for (size_t j = 0; j < SECURE_KEY_SIZE; j++) {
-            key[j] ^= temp[j];
-        }
-        
-        memcpy(prev, temp, SECURE_KEY_SIZE);
+
+    // salt || INT_32_BE(1)
+    unsigned char salt_block_len_extend[64];
+    if (salt_len + 4 > sizeof(salt_block_len_extend)) {
+        // Very large salt not supported by this minimal implementation
+        return -1;
     }
-    
-    secure_wipe(temp, sizeof(temp));
-    secure_wipe(prev, sizeof(prev));
-    
+    memcpy(salt_block_len_extend, salt, salt_len);
+    salt_block_len_extend[salt_len + 0] = 0x00;
+    salt_block_len_extend[salt_len + 1] = 0x00;
+    salt_block_len_extend[salt_len + 2] = 0x00;
+    salt_block_len_extend[salt_len + 3] = 0x01;
+
+    unsigned char u[32];
+    unsigned char t[32];
+    SecureAutoWipe wipe_u(u, sizeof(u));
+    SecureAutoWipe wipe_t(t, sizeof(t));
+
+    // U1 = HMAC(P, salt||1)
+    hmac_sha256((const uint8_t*)password, password_len,
+                (const uint8_t*)salt_block_len_extend, salt_len + 4,
+                (uint8_t*)u);
+    memcpy(t, u, 32);
+
+    // U2..Uiterations
+    for (int i = 2; i <= iterations; i++) {
+        hmac_sha256((const uint8_t*)password, password_len,
+                    (const uint8_t*)u, 32,
+                    (uint8_t*)u);
+        for (size_t j = 0; j < 32; j++) {
+            t[j] ^= u[j];
+        }
+    }
+
+    // Output key is first 32 bytes (SECURE_KEY_SIZE == 32)
+    memcpy(key, t, SECURE_KEY_SIZE);
+
+    // Wipe temporary salt extension
+    secure_wipe(salt_block_len_extend, salt_len + 4);
     return 0;
 }
 

@@ -5,6 +5,7 @@
 
 #include "whiteboxCrypto.h"
 #include "secureMemory.h"
+#include "sha256.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -747,7 +748,16 @@ int wb_encrypt_file(const char* input_path, const char* output_path,
     header.original_size = file_size;
     memcpy(header.salt, salt, 16);
     memcpy(header.iv, iv, 16);
-    memset(header.hmac, 0, 32);  // Simplified: no HMAC for now
+    // Compute simple HMAC over header fields (salt+iv) + ciphertext using password-derived key
+    unsigned char hkey[32];
+    // Derive HMAC key (reuse KDF)
+    secure_derive_key(password, password_len, salt, 16, 4000, hkey);
+    // Compute HMAC over (salt||iv||ciphertext)
+    sha256_ctx shactx; sha256_init(&shactx);
+    sha256_update(&shactx, salt, 16); sha256_update(&shactx, iv, 16);
+    sha256_update(&shactx, (const uint8_t*)ciphertext, cipher_len);
+    uint8_t digest[32]; sha256_final(&shactx, digest);
+    hmac_sha256(hkey, 32, digest, 32, header.hmac);
     
     fwrite(&header, sizeof(header), 1, fout);
     fwrite(ciphertext, 1, cipher_len, fout);
@@ -841,6 +851,21 @@ int wb_decrypt_file(const char* input_path, const char* output_path,
         return -1;
     }
     
+    // Verify integrity (basic HMAC check)
+    // Recompute HMAC and verify
+    unsigned char hkey[32];
+    secure_derive_key(password, password_len, header.salt, 16, 4000, hkey);
+    sha256_ctx vctx; sha256_init(&vctx);
+    sha256_update(&vctx, header.salt, 16); sha256_update(&vctx, header.iv, 16);
+    sha256_update(&vctx, ciphertext, file_size);
+    uint8_t vdigest[32]; sha256_final(&vctx, vdigest);
+    uint8_t vhmac[32]; hmac_sha256(hkey, 32, vdigest, 32, vhmac);
+    if (memcmp(header.hmac, vhmac, 32) != 0) {
+        wb_cascade_cleanup(&ctx);
+        secure_free(ciphertext, file_size);
+        return -1;
+    }
+
     // Write decrypted file
     FILE* fout = fopen(output_path, "wb");
     if (!fout) {
@@ -999,8 +1024,10 @@ int wb_verify_file_integrity(const char* file_path, const char* password, size_t
     if (header.magic != WB_FILE_MAGIC) return 0;
     if (header.version != WB_FILE_VERSION) return 0;
     
-    // In a real implementation, verify HMAC here
-    // For now, just check header validity
-    return 1;
+    // Basic HMAC presence check (non-zero) — full verification happens in decrypt path
+    for (int i = 0; i < 32; ++i) {
+        if (header.hmac[i] != 0) return 1;
+    }
+    return 0;
 }
 

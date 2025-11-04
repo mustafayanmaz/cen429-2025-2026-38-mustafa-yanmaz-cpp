@@ -9,6 +9,8 @@
 #include "whiteboxCrypto.h"
 #include "assetProtection.h"
 #include "database.h"
+#include "secureMemory.h"
+#include "assetProtection.h"
 
 // Obfuscated encryption password for file storage
 static ObfuscatedString g_file_encryption_password;
@@ -220,11 +222,14 @@ void saveUsersToFile(HashTable* table, const char* filename) {
     // Get decrypted file password
     char file_password[256];
     get_file_password(file_password);
+    SecureAutoWipe wipe_pw_users(file_password, sizeof(file_password));
     
     // Encrypt the temporary file using Whitebox Cryptography
     int result = wb_encrypt_file(temp_filename, filename, 
                                   file_password, 
                                   strlen(file_password));
+    // (Best-effort) Integrity check after write
+    (void)wb_verify_file_integrity(filename, file_password, strlen(file_password));
     
     // Securely wipe password
     secure_wipe(file_password, sizeof(file_password));
@@ -258,11 +263,14 @@ void loadUsersFromFile(HashTable* table, const char* filename) {
     // Get decrypted file password
     char file_password[256];
     get_file_password(file_password);
+    SecureAutoWipe wipe_pw_users_load(file_password, sizeof(file_password));
     
     // Decrypt the file using Whitebox Cryptography
     int result = wb_decrypt_file(filename, temp_filename,
                                   file_password,
                                   strlen(file_password));
+    // (Best-effort) Integrity verify before use (if decrypt path supports)
+    (void)wb_verify_file_integrity(filename, file_password, strlen(file_password));
     
     // Securely wipe password
     secure_wipe(file_password, sizeof(file_password));
@@ -521,6 +529,7 @@ void savePetsToFile(Pet* petList, const char* filename) {
     // Get decrypted file password
     char file_password[256];
     get_file_password(file_password);
+    SecureAutoWipe wipe_pw_pets(file_password, sizeof(file_password));
     
     // Encrypt the temporary file using Whitebox Cryptography
     int result = wb_encrypt_file(temp_filename, filename,
@@ -559,6 +568,7 @@ void loadPetsFromFile(Pet** petList, const char* filename) {
     // Get decrypted file password
     char file_password[256];
     get_file_password(file_password);
+    SecureAutoWipe wipe_pw_pets_load(file_password, sizeof(file_password));
     
     // Decrypt the file using Whitebox Cryptography
     int result = wb_decrypt_file(filename, temp_filename,
@@ -951,6 +961,9 @@ bool updateAppointment(const char* petName, int oldDay, int oldMonth, int newDay
     printf("Date: %02d/%02d, Description: %s\n", oldSavedDay, oldSavedMonth, oldSavedDescription);
     printf("New Appointment:\n");
     printf("Date: %02d/%02d, Description: %s\n", newDay, newMonth, newDescription);
+
+    // Wipe old description from stack buffer
+    secure_wipe(oldSavedDescription, sizeof(oldSavedDescription));
 
     return true;
 }
@@ -1794,8 +1807,12 @@ void loadBirthdaysFromFile(BPlusTree* birthdayTree, const char* filename, Pet** 
         }
         insertBirthday(birthdayTree, nameBuf, day, month, year);
 
+        // Securely wipe and free temporary buffers
+        secure_wipe(nameBuf, nameLen);
         free(nameBuf);
+        secure_wipe(typeBuf, typeLen);
         free(typeBuf);
+        secure_wipe(ownerBuf, ownerLen);
         free(ownerBuf);
     }
 
@@ -2467,14 +2484,43 @@ int isSessionValid() {
  * @param db_path Path to the database file
  * @return 0 on success, non-zero on failure
  */
+static int get_kdf_iterations() {
+    const char* env = getenv("PETCARE_KDF_ITERS");
+    if (!env) return 20000;
+    long v = strtol(env, NULL, 10);
+    if (v < 1000) v = 1000;
+    if (v > 1000000) v = 1000000;
+    return (int)v;
+}
+
 int init_petcare_database(const char* db_path) {
     if (g_db_initialized) {
         return 0; // Already initialized
     }
     
-    // Initialize with encryption key
-    const char* encryption_key = "PetCare2024DatabaseEncryption!@#$";
-    g_petcare_db = db_init(db_path, encryption_key);
+    // Derive per-device application key (device fingerprint + app hash)
+    unsigned char app_hash[32]; memset(app_hash, 0, sizeof(app_hash));
+    SecureAutoWipe wipe_app_hash(app_hash, sizeof(app_hash));
+    (void)get_app_integrity_hash(app_hash);
+    DeviceFingerprint fp; memset(&fp, 0, sizeof(fp));
+    generate_device_fingerprint(&fp);
+    unsigned char salt[16]; memcpy(salt, fp.combined_fingerprint, 16);
+    SecureAutoWipe wipe_salt(salt, sizeof(salt));
+    static char encryption_key_hex[65];
+    unsigned char key[SECURE_KEY_SIZE];
+    SecureAutoWipe wipe_key(key, sizeof(key));
+    secure_derive_key((const char*)app_hash, 32, salt, 16, get_kdf_iterations(), key);
+    const char* hexd = "0123456789abcdef";
+    for (int i = 0; i < 32; ++i) {
+        encryption_key_hex[i*2] = hexd[(key[i] >> 4) & 0xF];
+        encryption_key_hex[i*2+1] = hexd[key[i] & 0xF];
+    }
+    encryption_key_hex[64] = '\0';
+    secure_wipe(key, sizeof(key));
+
+    g_petcare_db = db_init(db_path, encryption_key_hex);
+    // Wipe hex key after use
+    secure_wipe(encryption_key_hex, sizeof(encryption_key_hex));
     
     if (!g_petcare_db) {
         fprintf(stderr, "Failed to initialize database\n");

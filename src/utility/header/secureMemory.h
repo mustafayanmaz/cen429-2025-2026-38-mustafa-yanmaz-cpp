@@ -212,6 +212,14 @@ int secure_munlock(void* ptr, size_t size);
 
 #ifdef __cplusplus
 }
+
+// RAII zeroize helper for C++ scopes
+struct SecureAutoWipe {
+    void* ptr;
+    size_t len;
+    explicit SecureAutoWipe(void* p, size_t l) : ptr(p), len(l) {}
+    ~SecureAutoWipe() { if (ptr && len) secure_wipe(ptr, len); }
+};
 #endif
 
 #endif // SECURE_MEMORY_H

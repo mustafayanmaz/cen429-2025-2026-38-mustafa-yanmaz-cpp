@@ -128,10 +128,36 @@ Database* db_init(const char* db_path, const char* encryption_key) {
     db->db = NULL;
     db->db_path = strdup(db_path);
     db->is_encrypted = (encryption_key != NULL) ? 1 : 0;
-    
-    int rc = sqlite3_open(db_path, &db->db);
+    db->temp_path = NULL;
+    db->secure_mode = (encryption_key != NULL) ? 1 : 0;
+
+    const char* open_path = db_path;
+    char temp_path_buf[512] = {0};
+    char enc_path_buf[512] = {0};
+
+    if (db->secure_mode) {
+        // Decrypt encrypted container (db_path.enc) to a temp runtime file
+        snprintf(temp_path_buf, sizeof(temp_path_buf), "%s.tmp.sqlite", db_path);
+        snprintf(enc_path_buf, sizeof(enc_path_buf), "%s.enc", db_path);
+
+        // If encrypted file exists, decrypt it; otherwise start with an empty temp
+        FILE* fenc = fopen(enc_path_buf, "rb");
+        if (fenc) {
+            fclose(fenc);
+            char keybuf[256];
+            if (get_db_encryption_key(keybuf, sizeof(keybuf)) == 0) {
+                (void)wb_decrypt_file(enc_path_buf, temp_path_buf, keybuf, (int)strlen(keybuf));
+                secure_wipe(keybuf, sizeof(keybuf));
+            }
+        }
+        open_path = temp_path_buf;
+        db->temp_path = strdup(temp_path_buf);
+    }
+
+    int rc = sqlite3_open(open_path, &db->db);
     if (rc != SQLITE_OK) {
         fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db->db));
+        if (db->temp_path) { free(db->temp_path); }
         free(db->db_path);
         free(db);
         return NULL;
@@ -140,10 +166,8 @@ Database* db_init(const char* db_path, const char* encryption_key) {
     // Enable foreign keys
     sqlite3_exec(db->db, "PRAGMA foreign_keys = ON;", NULL, NULL, NULL);
     
-    // Set encryption if provided (using custom encryption, not SQLCipher)
+    // Set memory hardening pragma (best effort)
     if (encryption_key) {
-        // Note: This is a placeholder for custom encryption
-        // Real implementation would use SQLite encryption extension or SQLCipher
         char pragma[512];
         snprintf(pragma, sizeof(pragma), "PRAGMA cipher_memory_security = ON;");
         sqlite3_exec(db->db, pragma, NULL, NULL, NULL);
@@ -162,10 +186,23 @@ void db_close(Database* db) {
     if (db->db) {
         sqlite3_close(db->db);
     }
-    
-    if (db->db_path) {
-        free(db->db_path);
+
+    // If secure mode, re-encrypt temp runtime DB to container and wipe temp
+    if (db->secure_mode && db->temp_path && db->db_path) {
+        char enc_path_buf[512];
+        snprintf(enc_path_buf, sizeof(enc_path_buf), "%s.enc", db->db_path);
+        char keybuf[256];
+        if (get_db_encryption_key(keybuf, sizeof(keybuf)) == 0) {
+            (void)wb_encrypt_file(db->temp_path, enc_path_buf, keybuf, (int)strlen(keybuf));
+            secure_wipe(keybuf, sizeof(keybuf));
+        }
+        // Remove plaintext temp and base db file if exists
+        remove(db->temp_path);
+        remove(db->db_path);
     }
+
+    if (db->temp_path) { free(db->temp_path); }
+    if (db->db_path) { free(db->db_path); }
     
     free(db);
 }

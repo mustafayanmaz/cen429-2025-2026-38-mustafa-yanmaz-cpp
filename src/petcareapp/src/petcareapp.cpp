@@ -16,6 +16,7 @@
 #include "database.h"
 #include "assetProtection.h"
 #include "raspSecurity.h"
+#include "secureMemory.h"
 
 extern "C" {
 int db_load_feeding_schedules(struct Database* db, struct Queue* queue);
@@ -104,6 +105,26 @@ static void rasp_app_logger(const char* message) {
 }
 
 /**
+ * @brief Writes a JSON security event under docs/security/evidence/
+ */
+static void write_security_event_json(const char* type, const char* detail, int code) {
+    const char* dir = "docs/security/evidence";
+#ifdef _WIN32
+    _mkdir("docs"); _mkdir("docs/security"); _mkdir(dir);
+#else
+    mkdir("docs", 0777); mkdir("docs/security", 0777); mkdir(dir, 0777);
+#endif
+    char path[512];
+    unsigned long long ts = (unsigned long long)time(NULL);
+    snprintf(path, sizeof(path), "%s/security_event_%llu.json", dir, ts);
+    FILE* f = fopen(path, "wb");
+    if (!f) return;
+    fprintf(f, "{\n  \"timestamp\": %llu,\n  \"type\": \"%s\",\n  \"code\": %d,\n  \"detail\": \"%s\"\n}\n",
+            ts, type ? type : "", code, detail ? detail : "");
+    fclose(f);
+}
+
+/**
  * @brief Get CFI counter value
  */
 static uint64_t rasp_get_cfi_counter_value(uint64_t counter_id) {
@@ -140,6 +161,7 @@ static int verify_application_integrity() {
     // Verify checksum
     if (rasp_verify_checksum(&g_app_checksum) != RASP_SUCCESS) {
         printf("[SECURITY] ERROR: Application integrity violation detected!\n");
+        write_security_event_json("CHECKSUM_FAIL", "Application code block checksum mismatch", -1);
         return -1;
     }
     
@@ -178,20 +200,10 @@ static void initialize_rasp_security() {
         // Perform initial security check
         int result = rasp_comprehensive_check();
         if (result != RASP_SUCCESS) {
-            switch (result) {
-                case RASP_ERROR_DEBUGGER_DETECTED:
-                    printf("[SECURITY] WARNING: Debugger detected!\n");
-                    break;
-                case RASP_ERROR_UNTRUSTED_DEVICE:
-                    printf("[SECURITY] WARNING: Untrusted device detected!\n");
-                    break;
-                case RASP_ERROR_HOOK_DETECTED:
-                    printf("[SECURITY] WARNING: Hook detected!\n");
-                    break;
-                case RASP_ERROR_TAMPER_DETECTED:
-                    printf("[SECURITY] WARNING: Tampering detected!\n");
-                    break;
-            }
+            // Fail closed for high-risk conditions and record JSON
+            write_security_event_json("RASP_COMPREHENSIVE_FAIL", "Initial comprehensive RASP check failed", result);
+            printf("[SECURITY] CRITICAL: RASP check failed (%d) - terminating\n", result);
+            exit(1);
         }
         
         // Assess device trust
@@ -200,13 +212,82 @@ static void initialize_rasp_security() {
         printf("[SECURITY] Device trust score: %d/100\n", trust.trust_score);
         if (trust.is_rooted) {
             printf("[SECURITY] WARNING: Device is rooted/jailbroken\n");
+            write_security_event_json("DEVICE_TRUST", "Root/Jailbreak detected", 1);
         }
         if (trust.is_emulator) {
             printf("[SECURITY] INFO: VM/Emulator detection triggered (may be false positive)\n");
+            write_security_event_json("DEVICE_TRUST", "Emulator/VM detected", 2);
         }
     } else {
         printf("[SECURITY] Failed to initialize RASP protection\n");
     }
+}
+
+/**
+ * @brief Application signature/hash verification
+ * If docs/security/app.hash exists, verify against it; else generate and write it.
+ */
+static void verify_or_bootstrap_app_hash() {
+    const char* hash_path = "docs/security/app.hash";
+    unsigned char expected[32];
+    FILE* f = fopen(hash_path, "rb");
+    if (f) {
+        size_t r = fread(expected, 1, sizeof(expected), f); fclose(f);
+        if (r == sizeof(expected)) {
+            if (verify_app_integrity(expected) != 1) {
+                write_security_event_json("APP_HASH_FAIL", "Application integrity hash mismatch", -1);
+                printf("[SECURITY] CRITICAL: Application integrity hash mismatch - terminating\n");
+                exit(1);
+            }
+        }
+    } else {
+        unsigned char current[32];
+        if (get_app_integrity_hash(current) == 0) {
+            // bootstrap expected hash
+            const char* dir = "docs/security";
+#ifdef _WIN32
+            _mkdir("docs"); _mkdir(dir);
+#else
+            mkdir("docs", 0777); mkdir(dir, 0777);
+#endif
+            FILE* wf = fopen(hash_path, "wb");
+            if (wf) { fwrite(current, 1, sizeof(current), wf); fclose(wf); }
+        }
+    }
+}
+
+/**
+ * @brief Derive database encryption key from device fingerprint + app hash
+ */
+static int get_kdf_iterations_app() {
+    const char* env = getenv("PETCARE_KDF_ITERS");
+    if (!env) return 20000;
+    long v = strtol(env, NULL, 10);
+    if (v < 1000) v = 1000;
+    if (v > 1000000) v = 1000000;
+    return (int)v;
+}
+
+static void derive_database_key(char* out_hex, size_t out_len) {
+    if (!out_hex || out_len < 65) return;
+    DeviceFingerprint fp; memset(&fp, 0, sizeof(fp));
+    generate_device_fingerprint(&fp);
+    unsigned char app_hash[32]; memset(app_hash, 0, sizeof(app_hash));
+    (void)get_app_integrity_hash(app_hash);
+    unsigned char salt[16];
+    memcpy(salt, fp.combined_fingerprint, 16);
+    unsigned char key[SECURE_KEY_SIZE];
+    secure_derive_key((const char*)app_hash, 32, salt, 16, get_kdf_iterations_app(), key);
+    // hex encode first 32 bytes
+    const char* hexd = "0123456789abcdef";
+    for (int i = 0; i < 32 && (i * 2 + 1) < (int)out_len; ++i) {
+        out_hex[i*2] = hexd[(key[i] >> 4) & 0xF];
+        out_hex[i*2+1] = hexd[key[i] & 0xF];
+    }
+    out_hex[64] = '\0';
+    secure_wipe(key, sizeof(key));
+    secure_wipe(app_hash, sizeof(app_hash));
+    secure_wipe(salt, sizeof(salt));
 }
 
 /**
@@ -309,6 +390,8 @@ void navigateUserAuthentication(Menu* authMenu, HashTable* userTable, int* isAut
 #endif
             if (strcmp(authMenu->items[selectedIndex], "Login") == 0) {
                 char username[50], password[50];
+                SecureAutoWipe wipe_user(username, sizeof(username));
+                SecureAutoWipe wipe_pwd(password, sizeof(password));
                 
                 // CFI: Login entry
                 if (g_rasp_initialized) {
@@ -371,6 +454,7 @@ void navigateUserAuthentication(Menu* authMenu, HashTable* userTable, int* isAut
             }
             else if (strcmp(authMenu->items[selectedIndex], "Register") == 0) {
                 char username[50], password[50];
+                SecureAutoWipe wipe_pwd2(password, sizeof(password));
                 CLEAR_SCREEN();
                 printf("Enter Username: ");
                 scanf("%s", username);
@@ -478,6 +562,8 @@ void navigatePetsMenu(Menu * petsMenu, Pet * *petList, int isAuthenticated) {
 #endif
             if (strcmp(petsMenu->items[selectedIndex], "Add Pet") == 0) {
                 char name[50], type[50];
+                SecureAutoWipe wipe_name(name, sizeof(name));
+                SecureAutoWipe wipe_type(type, sizeof(type));
                 int age;
                 CLEAR_SCREEN();
                 printf("Enter pet's name: ");
@@ -503,6 +589,7 @@ void navigatePetsMenu(Menu * petsMenu, Pet * *petList, int isAuthenticated) {
             }
             else if (strcmp(petsMenu->items[selectedIndex], "Update Pet") == 0) {
                 char name[50];
+                SecureAutoWipe wipe_upd_name(name, sizeof(name));
                 CLEAR_SCREEN();
                 printf("Enter the name of the pet to update: ");
                 scanf("%s", name);
@@ -512,6 +599,7 @@ void navigatePetsMenu(Menu * petsMenu, Pet * *petList, int isAuthenticated) {
             }
             else if (strcmp(petsMenu->items[selectedIndex], "Delete") == 0) {
                 char name[50];
+                SecureAutoWipe wipe_del_name(name, sizeof(name));
                 CLEAR_SCREEN();
                 printf("Enter the name of the pet to delete: ");
                 scanf("%s", name);
@@ -536,6 +624,7 @@ void navigatePetsMenu(Menu * petsMenu, Pet * *petList, int isAuthenticated) {
             }
             else if (strcmp(petsMenu->items[selectedIndex], "Search By Name or Type") == 0) {
                 char searchKey[50];
+                SecureAutoWipe wipe_search(searchKey, sizeof(searchKey));
                 int searchMethod = 0;
 
                 CLEAR_SCREEN();
@@ -612,6 +701,8 @@ void navigateFeedingMenu(Menu * feedingMenu, Pet * petList) {
 #endif
             if (strcmp(feedingMenu->items[selectedIndex], "Add Feeding Schedule") == 0) {
                 char petName[50], scheduleDetails[100];
+                SecureAutoWipe wipe_feed_name(petName, sizeof(petName));
+                SecureAutoWipe wipe_feed_det(scheduleDetails, sizeof(scheduleDetails));
                 CLEAR_SCREEN();
                 printf("Enter pet's name: ");
                 scanf("%s", petName);
@@ -626,6 +717,8 @@ void navigateFeedingMenu(Menu * feedingMenu, Pet * petList) {
             }
             else if (strcmp(feedingMenu->items[selectedIndex], "Update Feeding Schedule") == 0) {
                 char petName[50], newDetails[100];
+                SecureAutoWipe wipe_feed_upd_name(petName, sizeof(petName));
+                SecureAutoWipe wipe_feed_upd_det(newDetails, sizeof(newDetails));
                 CLEAR_SCREEN();
                 printf("Enter pet's name to update the schedule: ");
                 scanf("%s", petName);
@@ -640,6 +733,7 @@ void navigateFeedingMenu(Menu * feedingMenu, Pet * petList) {
             }
             else if (strcmp(feedingMenu->items[selectedIndex], "Delete Feeding Schedule") == 0) {
                 char petName[50];
+                SecureAutoWipe wipe_feed_del_name(petName, sizeof(petName));
                 CLEAR_SCREEN();
                 printf("Enter pet's name to delete the feeding schedule: ");
                 scanf("%s", petName);
@@ -663,6 +757,8 @@ void navigateFeedingMenu(Menu * feedingMenu, Pet * petList) {
             }
             else if (strcmp(feedingMenu->items[selectedIndex], "Add Medicine Schedule") == 0) {
                 char petName[50], scheduleDetails[100];
+                SecureAutoWipe wipe_med_name(petName, sizeof(petName));
+                SecureAutoWipe wipe_med_det(scheduleDetails, sizeof(scheduleDetails));
                 CLEAR_SCREEN();
                 printf("Enter pet's name: ");
                 scanf("%s", petName);
@@ -677,6 +773,8 @@ void navigateFeedingMenu(Menu * feedingMenu, Pet * petList) {
             }
             else if (strcmp(feedingMenu->items[selectedIndex], "Update Medicine Schedule") == 0) {
                 char petName[50], newDetails[100];
+                SecureAutoWipe wipe_med_upd_name(petName, sizeof(petName));
+                SecureAutoWipe wipe_med_upd_det(newDetails, sizeof(newDetails));
                 CLEAR_SCREEN();
                 printf("Enter pet's name to update the medicine schedule: ");
                 scanf("%s", petName);
@@ -691,6 +789,7 @@ void navigateFeedingMenu(Menu * feedingMenu, Pet * petList) {
             }
             else if (strcmp(feedingMenu->items[selectedIndex], "Delete Medicine Schedule") == 0) {
                 char petName[50];
+                SecureAutoWipe wipe_med_del_name(petName, sizeof(petName));
                 CLEAR_SCREEN();
                 printf("Enter pet's name to delete the medicine schedule: ");
                 scanf("%s", petName);
@@ -778,6 +877,7 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
 #endif
             if (strcmp(adaptationMenu->items[selectedIndex], "Record Pet Birthday") == 0) {
                 char petName[50];
+                SecureAutoWipe wipe_bday_name(petName, sizeof(petName));
                 int birthdayDay, birthdayMonth, birthdayYear;
                 CLEAR_SCREEN();
                 printf("Enter pet's name: ");
@@ -804,6 +904,9 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
             else if (strcmp(adaptationMenu->items[selectedIndex], "Add stray animals") == 0) {
                 CLEAR_SCREEN();
                 char type[50], gender[10], arrivalDate[20];
+                SecureAutoWipe wipe_stray_type(type, sizeof(type));
+                SecureAutoWipe wipe_stray_gender(gender, sizeof(gender));
+                SecureAutoWipe wipe_stray_arr(arrivalDate, sizeof(arrivalDate));
                 int age;
                 printf("Enter stray animal's type: ");
                 scanf("%s", type);
@@ -828,6 +931,9 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
                 scanf("%d", &id);
 
                 char newType[50], newGender[10], newArrivalDate[20];
+                SecureAutoWipe wipe_stray_newtype(newType, sizeof(newType));
+                SecureAutoWipe wipe_stray_newgender(newGender, sizeof(newGender));
+                SecureAutoWipe wipe_stray_newarr(newArrivalDate, sizeof(newArrivalDate));
                 int newAge;
 
                 printf("Enter new type: ");
@@ -865,6 +971,7 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
             else if (strcmp(adaptationMenu->items[selectedIndex], "Search stray animals") == 0) {
                 CLEAR_SCREEN();
                 char searchKey[50];
+                SecureAutoWipe wipe_kmp_search(searchKey, sizeof(searchKey));
                 printf("Enter the animal type to search for: ");
                 scanf("%s", searchKey);
                 searchStrayAnimalsKMP(strayList, searchKey);
@@ -876,6 +983,7 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
                 listStrayAnimals(strayList);
                 printf("Select an ID to adopt (or 'q' to quit): ");
                 char choice[10];
+                SecureAutoWipe wipe_choice(choice, sizeof(choice));
                 scanf("%s", choice);
 
                 if (strcmp(choice, "q") == 0) {
@@ -888,10 +996,12 @@ void navigateAdaptationMenu(Menu * adaptationMenu, Pet * petList) {
                 int chosenID = atoi(choice);
 
                 char newName[50];
+                SecureAutoWipe wipe_newname(newName, sizeof(newName));
                 printf("Enter a name you want to give this animal: ");
                 scanf("%s", newName);
 
                 char adoptionDate[20];
+                SecureAutoWipe wipe_adopt_date(adoptionDate, sizeof(adoptionDate));
                 printf("Enter adoption date (dd/mm/yyyy): ");
                 scanf("%s", adoptionDate);
 
@@ -984,6 +1094,8 @@ void navigateVetMenu(Menu * vetMenu, const char* activeUser, Pet * petList) {
 #endif
             if (strcmp(vetMenu->items[selectedIndex], "Add Appointment") == 0) {
                 char petName[50], description[100];
+                SecureAutoWipe wipe_vet_name(petName, sizeof(petName));
+                SecureAutoWipe wipe_vet_desc(description, sizeof(description));
                 int day, month;
                 CLEAR_SCREEN();
                 printf("Enter pet's name: ");
@@ -1000,6 +1112,8 @@ void navigateVetMenu(Menu * vetMenu, const char* activeUser, Pet * petList) {
             }
             else if (strcmp(vetMenu->items[selectedIndex], "Update Appointment") == 0) {
                 char petName[50], newDescription[100];
+                SecureAutoWipe wipe_vet_upd_name(petName, sizeof(petName));
+                SecureAutoWipe wipe_vet_upd_desc(newDescription, sizeof(newDescription));
                 int oldDay, oldMonth, newDay, newMonth;
 
                 loadAppointmentsFromFile();
@@ -1027,6 +1141,7 @@ void navigateVetMenu(Menu * vetMenu, const char* activeUser, Pet * petList) {
             }
             else if (strcmp(vetMenu->items[selectedIndex], "Cancel Appointment") == 0) {
                 char petName[50];
+                SecureAutoWipe wipe_vet_cancel_name(petName, sizeof(petName));
                 loadAppointmentsFromFile();
                 int day, month;
                 CLEAR_SCREEN();
@@ -1102,6 +1217,8 @@ void navigateExerciseMenu(Menu * exerciseMenu, Pet * petList, char* activeUser) 
             if (strcmp(exerciseMenu->items[selectedIndex], "Add Exercise Routine") == 0) {
                 CLEAR_SCREEN();
                 char petName[50], exercise[100];
+                SecureAutoWipe wipe_ex_name(petName, sizeof(petName));
+                SecureAutoWipe wipe_ex_det(exercise, sizeof(exercise));
                 printf("Enter pet's name: ");
                 scanf("%s", petName);
 
@@ -1136,6 +1253,8 @@ void navigateExerciseMenu(Menu * exerciseMenu, Pet * petList, char* activeUser) 
             else if (strcmp(exerciseMenu->items[selectedIndex], "Add Grooming Routine") == 0) {
                 CLEAR_SCREEN();
                 char petName[50], exercise[100];
+                SecureAutoWipe wipe_groom_name(petName, sizeof(petName));
+                SecureAutoWipe wipe_groom_det(exercise, sizeof(exercise));
                 printf("Enter pet's name: ");
                 scanf("%s", petName);
 
@@ -1266,15 +1385,9 @@ void navigateMainMenu(Menu * mainMenu, HashTable * userTable, int* isAuthenticat
             HookInfo hooks[5];
             int hook_count = rasp_scan_all_hooks(hooks, 5);
             if (hook_count > 0) {
-                printf("\n[SECURITY] WARNING: %d hook(s) detected!\n", hook_count);
-                for (int i = 0; i < hook_count && i < 5; i++) {
-                    printf("[SECURITY] Hook at %p -> %p (%s)\n", 
-                           hooks[i].target_address, 
-                           hooks[i].hook_address,
-                           hooks[i].function_name);
-                }
-                // In production, you might want to terminate here
-                // exit(1);
+            printf("\n[SECURITY] CRITICAL: %d hook(s) detected - terminating\n", hook_count);
+            write_security_event_json("HOOK_DETECTED", "Inline/IAT hook(s) detected", hook_count);
+                exit(1);
             }
         }
         CLEAR_SCREEN();
@@ -1391,6 +1504,8 @@ int main(int argc, char* argv[]) {
     
     // Initialize RASP security system
     initialize_rasp_security();
+    // Verify or bootstrap application integrity hash (file-based)
+    verify_or_bootstrap_app_hash();
     
     // Initialize existing security features
     printf("\nInitializing session security...\n");
@@ -1398,6 +1513,10 @@ int main(int argc, char* argv[]) {
     
     // Initialize database
     printf("\nInitializing database...\n");
+    char dbkey[65]; memset(dbkey, 0, sizeof(dbkey));
+    derive_database_key(dbkey, sizeof(dbkey));
+    SecureAutoWipe wipe_dbkey(dbkey, sizeof(dbkey));
+    // init_petcare_database internally uses db_init; we pass encryption key via that path
     if (init_petcare_database("petcare.db") == 0) {
         printf("[DATABASE] Database initialized successfully\n");
     } else {

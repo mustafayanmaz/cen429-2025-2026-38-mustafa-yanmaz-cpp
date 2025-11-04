@@ -368,6 +368,37 @@ TEST_F(WhiteboxCryptoTest, File_IntegrityVerificationTest) {
     EXPECT_NE(valid, 1);
 }
 
+TEST_F(WhiteboxCryptoTest, DecryptFailsOnTamperedHmac) {
+    const char* password = "P@ssw0rd!";
+    // Prepare plain file
+    FILE* fp = fopen("tamper_plain.txt", "wb");
+    ASSERT_TRUE(fp != nullptr);
+    fputs("Secret payload for HMAC tamper test", fp);
+    fclose(fp);
+
+    // Encrypt
+    ASSERT_EQ(wb_encrypt_file("tamper_plain.txt", "tamper_encrypted.dat",
+                              password, strlen(password)), 0);
+
+    // Tamper HMAC (flip first byte)
+    FILE* fe = fopen("tamper_encrypted.dat", "rb+");
+    ASSERT_TRUE(fe != nullptr);
+    // Skip to HMAC in header: read header, modify hmac[0]
+    typedef struct { uint32_t magic; uint16_t version; uint16_t layer_type; uint32_t padding_size; uint32_t original_size; uint8_t salt[16]; uint8_t iv[16]; uint8_t hmac[32]; } LocalHeader;
+    LocalHeader hdr;
+    ASSERT_EQ(fread(&hdr, sizeof(hdr), 1, fe), 1u);
+    long back = ftell(fe);
+    hdr.hmac[0] ^= 0xFF;
+    fseek(fe, 0, SEEK_SET);
+    ASSERT_EQ(fwrite(&hdr, sizeof(hdr), 1, fe), 1u);
+    fclose(fe);
+
+    // Decrypt should fail
+    int dec = wb_decrypt_file("tamper_encrypted.dat", "tamper_decrypted.txt",
+                              password, strlen(password));
+    EXPECT_NE(dec, 0);
+}
+
 /**
  * @brief Test IV and salt generation
  */

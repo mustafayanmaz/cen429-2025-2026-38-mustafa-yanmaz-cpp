@@ -19,6 +19,8 @@ typedef struct Database {
     sqlite3* db;                /**< SQLite database handle */
     char* db_path;              /**< Path to the database file */
     int is_encrypted;           /**< Flag indicating if DB is encrypted */
+    char* temp_path;            /**< Secure mode: decrypted temp path (runtime) */
+    int secure_mode;            /**< 1 if DB-at-rest encryption via whitebox is enabled */
 } Database;
 
 /**
