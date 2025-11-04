@@ -49,9 +49,16 @@ add_compile_definitions(ENABLE_UTILITY_TEST)
 add_compile_definitions(ENABLE_petcare_TEST)
 
 
-# Configure logs
-add_compile_definitions(ENABLE_UTILITY_LOGGER)
-add_compile_definitions(ENABLE_petcare_LOGGER)
+# Configure logs (disabled in Release mode for security)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_definitions(ENABLE_UTILITY_LOGGER)
+    add_compile_definitions(ENABLE_petcare_LOGGER)
+    message(STATUS "[${ROOT}] Logging ENABLED (Debug mode)")
+else()
+    # Release mode: disable all logging for security
+    add_compile_definitions(NDEBUG)
+    message(STATUS "[${ROOT}] Logging DISABLED (Release mode)")
+endif()
 
 # Set the output directories for Debug and Release configurations
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/build/Debug)

@@ -21,8 +21,10 @@ protected:
     Database* db = nullptr;
     
     void SetUp() override {
-        // Clean up any existing test database
+        // Clean up any existing test database files
         remove(test_db_path);
+        remove("test_encryption.db.enc");
+        remove("test_encryption.db-journal");
     }
     
     void TearDown() override {
@@ -32,6 +34,8 @@ protected:
             db = nullptr;
         }
         remove(test_db_path);
+        remove("test_encryption.db.enc");
+        remove("test_encryption.db-journal");
     }
 };
 

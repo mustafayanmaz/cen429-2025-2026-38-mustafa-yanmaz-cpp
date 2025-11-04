@@ -8,6 +8,7 @@
 #include "secureMemory.h"
 #include "whiteboxCrypto.h"
 #include "assetProtection.h"
+#include "codeObfuscation.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -94,20 +95,64 @@ static int g_db_key_initialized = 0;
  * @return 0 on success, -1 on failure
  */
 static int get_db_encryption_key(char* output, size_t output_size) {
-    if (!output || output_size < 64) return -1;
+    volatile int dummy = (int)time(NULL) | 1;
     
-    // Initialize obfuscated key on first call
-    if (!g_db_key_initialized) {
-        const char* original_key = "PetCare2025DatabaseEncryption!@#$";
-        if (create_obfuscated_string(original_key, &g_db_encryption_key_obf) != 0) {
-            return -1;
-        }
-        g_db_key_initialized = 1;
+    // Obfuscated parameter validation with multiple exit points
+    CFDispatcher disp;
+    cf_init(&disp, 0);
+    
+    if (!output) {
+        inject_dead_code(3);
+        return obf_sub(0, 1);
     }
     
-    // Reveal the key
-    if (reveal_obfuscated_string(&g_db_encryption_key_obf, output, output_size) != 0) {
-        return -1;
+    cf_transition(&disp, 1);
+    
+    if (opaque_true(dummy)) {
+        if (output_size < 64) {
+            return obf_sub(0, 1);
+        }
+    }
+    
+    // Initialize obfuscated key on first call with complex control flow
+    if (!g_db_key_initialized) {
+        cf_transition(&disp, 2);
+        
+        if (opaque_true(dummy)) {
+            // Obfuscated string constant
+            const char* original_key = "PetCare2025DatabaseEncryption!@#$";
+            
+            if (opaque_complex(dummy, g_db_key_initialized)) {
+                if (create_obfuscated_string(original_key, &g_db_encryption_key_obf) != 0) {
+                    inject_dead_code(2);
+                    return obf_sub(0, 1);
+                }
+            }
+            
+            g_db_key_initialized = obf_add(0, 1);
+        }
+        
+        // Dead branch
+        if (opaque_false(dummy)) {
+            g_db_key_initialized = obf_mul_const(1, 0);
+        }
+    }
+    
+    cf_transition(&disp, 3);
+    
+    // Reveal the key with obfuscated error checking
+    volatile int reveal_result = reveal_obfuscated_string(&g_db_encryption_key_obf, output, output_size);
+    
+    if (opaque_true(dummy)) {
+        if (reveal_result != 0) {
+            inject_dead_code(2);
+            return obf_sub(0, 1);
+        }
+    }
+    
+    // Multiple exit points
+    if (opaque_complex(cf_get_state(&disp), 3)) {
+        return 0;
     }
     
     return 0;

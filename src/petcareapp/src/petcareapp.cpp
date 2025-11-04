@@ -4,11 +4,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #ifdef _WIN32
+#include <windows.h> // GetModuleFileName
 #include <conio.h>  // Windows for getch()
+#include <direct.h> // _mkdir
 #else
 #include <termios.h> 
 #include <unistd.h>  
+#include <sys/stat.h> // mkdir
 #endif
 
 #include "methods.h"
@@ -17,6 +21,7 @@
 #include "assetProtection.h"
 #include "raspSecurity.h"
 #include "secureMemory.h"
+#include "codeObfuscation.h"
 
 extern "C" {
 int db_load_feeding_schedules(struct Database* db, struct Queue* queue);
@@ -1484,26 +1489,45 @@ void navigateMainMenu(Menu * mainMenu, HashTable * userTable, int* isAuthenticat
  * @return 0 on successful execution.
  */
 int main(int argc, char* argv[]) {
-    // Check for test/coverage mode
-    int test_mode = 0;
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--test-coverage") == 0 || 
-            strcmp(argv[i], "--non-interactive") == 0 ||
-            strcmp(argv[i], "-t") == 0) {
-            test_mode = 1;
-            break;
+    // ========================================================================
+    // CODE OBFUSCATION INITIALIZATION
+    // ========================================================================
+    obf_init();
+    
+    // Check for test/coverage mode with obfuscated loop
+    volatile int test_mode = 0;
+    volatile int dummy = (int)time(NULL) | 1;
+    
+    // Obfuscated argument parsing
+    for (volatile int i = 1; i < argc; i++) {
+        if (opaque_true(dummy)) {
+            if (obf_strcmp(argv[i], "--test-coverage") == 0 || 
+                obf_strcmp(argv[i], "--non-interactive") == 0 ||
+                obf_strcmp(argv[i], "-t") == 0) {
+                test_mode = obf_add(0, 1);
+                break;
+            }
         }
+        
+        // Dead branch
+        if (opaque_false(dummy)) {
+            test_mode = obf_mul_const(test_mode, 2);
+        }
+        
+        inject_dead_code(1);
     }
     
     // ========================================================================
     // RASP SECURITY INITIALIZATION
     // ========================================================================
-    printf("================================================================\n");
-    printf("         PetCare Application - Security Initialization        \n");
-    printf("================================================================\n\n");
+    OBF_INFO("================================================================\n");
+    OBF_INFO("         PetCare Application - Security Initialization        \n");
+    OBF_INFO("================================================================\n\n");
     
-    // Initialize RASP security system
-    initialize_rasp_security();
+    // Initialize RASP security system with obfuscated call
+    if (opaque_true(dummy)) {
+        initialize_rasp_security();
+    }
     // Verify or bootstrap application integrity hash (file-based)
     verify_or_bootstrap_app_hash();
     
@@ -1511,24 +1535,58 @@ int main(int argc, char* argv[]) {
     printf("\nInitializing session security...\n");
     init_petcare_session();
     
-    // Initialize database
+    // Initialize database - construct path relative to executable
     printf("\nInitializing database...\n");
+    
+    // Get executable directory
+    char exe_path[512] = {0};
+    char db_full_path[512] = {0};
+    
+#ifdef _WIN32
+    GetModuleFileNameA(NULL, exe_path, sizeof(exe_path));
+    // Find last backslash to get directory
+    char* last_slash = strrchr(exe_path, '\\');
+    if (last_slash) {
+        *last_slash = '\0';
+        snprintf(db_full_path, sizeof(db_full_path), "%s\\petcare.db", exe_path);
+    } else {
+        strcpy(db_full_path, "petcare.db");
+    }
+#else
+    // Linux/Unix
+    ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path)-1);
+    if (len != -1) {
+        exe_path[len] = '\0';
+        char* last_slash = strrchr(exe_path, '/');
+        if (last_slash) {
+            *last_slash = '\0';
+            snprintf(db_full_path, sizeof(db_full_path), "%s/petcare.db", exe_path);
+        } else {
+            strcpy(db_full_path, "petcare.db");
+        }
+    } else {
+        strcpy(db_full_path, "petcare.db");
+    }
+#endif
+    
+    printf("[DATABASE] Database path: %s\n", db_full_path);
+    
     char dbkey[65]; memset(dbkey, 0, sizeof(dbkey));
     derive_database_key(dbkey, sizeof(dbkey));
     SecureAutoWipe wipe_dbkey(dbkey, sizeof(dbkey));
     // init_petcare_database internally uses db_init; we pass encryption key via that path
-    if (init_petcare_database("petcare.db") == 0) {
-        printf("[DATABASE] Database initialized successfully\n");
+    if (init_petcare_database(db_full_path) == 0) {
+        OBF_INFO("[DATABASE] Database initialized successfully\n");
     } else {
-        printf("[DATABASE] Warning: Database initialization failed\n");
+        OBF_WARNING("[DATABASE] Warning: Database initialization failed\n");
     }
     
-    printf("\n[SECURITY] All security features initialized\n");
+    OBF_INFO("\n[SECURITY] All security features initialized\n");
     
     // If in test mode, skip interactive parts
     if (test_mode) {
-        printf("\n[TEST MODE] Running in non-interactive mode for coverage testing\n");
-        printf("[TEST MODE] All security features verified successfully\n");
+        OBF_INFO("\n[TEST MODE] Running in non-interactive mode for coverage testing\n");
+        OBF_INFO("[TEST MODE] All security features verified successfully\n");
         
         // Perform basic initialization checks
         feedingQueue = createQueue();
@@ -1537,7 +1595,7 @@ int main(int argc, char* argv[]) {
         loadUsersFromFile(userTable, "database");
         loadAppointmentsFromFile();
         
-        printf("[TEST MODE] Data structures initialized successfully\n");
+        OBF_INFO("[TEST MODE] Data structures initialized successfully\n");
         
         // Cleanup
         freeHashTable(userTable);
@@ -1547,13 +1605,13 @@ int main(int argc, char* argv[]) {
         // Close database
         if (get_petcare_database()) {
             close_petcare_database();
-            printf("[TEST MODE] Database closed\n");
+            OBF_INFO("[TEST MODE] Database closed\n");
         }
         
         // Shutdown RASP
         if (g_rasp_initialized) {
             rasp_shutdown();
-            printf("[TEST MODE] RASP protection shutdown complete\n");
+            OBF_INFO("[TEST MODE] RASP protection shutdown complete\n");
         }
         
         printf("[TEST MODE] Test completed successfully - exiting\n");

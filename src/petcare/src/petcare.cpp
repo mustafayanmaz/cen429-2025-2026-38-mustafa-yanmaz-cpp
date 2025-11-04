@@ -11,6 +11,7 @@
 #include "database.h"
 #include "secureMemory.h"
 #include "assetProtection.h"
+#include "codeObfuscation.h"
 
 // Obfuscated encryption password for file storage
 static ObfuscatedString g_file_encryption_password;
@@ -47,16 +48,37 @@ static void get_file_password(char* buffer) {
 }
 
 /**
- * @brief A simple hash function for strings.
+ * @brief A simple hash function for strings (obfuscated version).
  * @param str Input string to be hashed.
  * @return Hash value within the range of the table size.
  */
 unsigned int hashFunction(const char* str) {
-    unsigned int hash = 0;
-    while (*str) {
-        hash = (hash * 31) + *str++;
+    volatile unsigned int hash = 0;
+    volatile int idx = 0;
+    volatile int dummy = (int)time(NULL) | 1;
+    
+    // Opaque loop with complex control flow
+    while (str[idx] != '\0') {
+        if (opaque_true(dummy)) {
+            // Obfuscated multiplication and addition
+            volatile int temp = obf_mul_const((int)hash, 31);
+            hash = (unsigned int)obf_add(temp, (int)str[idx]);
+            idx = obf_add(idx, 1);
+        }
+        
+        // Dead branch for confusion
+        if (opaque_false(dummy)) {
+            hash = obf_mul_const((int)hash, 17);
+            idx = obf_sub(idx, 1);
+        }
+        
+        // Inject fake operations
+        inject_dead_code(2);
     }
-    return hash % HASH_TABLE_SIZE;
+    
+    // Obfuscated modulo operation
+    volatile unsigned int result = hash % HASH_TABLE_SIZE;
+    return result;
 }
 
 /**
@@ -64,25 +86,68 @@ unsigned int hashFunction(const char* str) {
  * @return Pointer to the newly created HashTable.
  */
 HashTable* createHashTable() {
-    HashTable* table = (HashTable*)malloc(sizeof(HashTable));
-    for (int i = 0; i < HASH_TABLE_SIZE; i++) {
-        table->buckets[i] = NULL;
+    volatile int dummy = (int)time(NULL) | 1;
+    HashTable* table = (HashTable*)secure_malloc(sizeof(HashTable));
+    
+    volatile int i = 0;
+    while (i < HASH_TABLE_SIZE) {
+        if (opaque_true(dummy)) {
+            table->buckets[i] = NULL;
+            i = obf_add(i, 1);
+        }
+        
+        if (opaque_false(dummy)) {
+            i = obf_sub(i, 1);
+        }
     }
+    
+    if (opaque_true(dummy)) {
+        return table;
+    }
+    
     return table;
 }
 
 /**
- * @brief Encrypts the password using a simple XOR-based encryption.
+ * @brief Encrypts the password using a simple XOR-based encryption (obfuscated).
  * @param password The original password.
  * @return Pointer to the newly allocated encrypted password.
  */
 char* encryptPassword(const char* password) {
     if (!password) return NULL;
-    char* encrypted = (char*)malloc(strlen(password) + 1);
-    for (size_t i = 0; i < strlen(password); i++) {
-        encrypted[i] = password[i] ^ 0x5A;
+    
+    volatile size_t len = obf_strlen(password);
+    char* encrypted = (char*)secure_malloc(obf_add((int)len, 1));
+    
+    if (!encrypted) {
+        return NULL;
     }
-    encrypted[strlen(password)] = '\0';
+    
+    volatile int dummy = (int)time(NULL) | 1;
+    volatile uint8_t xor_key = 0x5A;
+    
+    // Obfuscated XOR encryption with complex loop
+    volatile size_t i = 0;
+    while (i < len) {
+        if (opaque_true(dummy)) {
+            // Obfuscated XOR with evolving key
+            volatile uint8_t encoded_key = encode_param(xor_key, (uint32_t)i);
+            encrypted[i] = password[i] ^ (encoded_key & 0xFF);
+            i = obf_add((int)i, 1);
+            
+            // Evolve the key
+            xor_key = (xor_key * 7 + 13) & 0xFF;
+        }
+        
+        // Dead branch
+        if (opaque_false(dummy)) {
+            encrypted[i] = password[i] & 0xFF;
+        }
+        
+        inject_dead_code(1);
+    }
+    
+    encrypted[len] = '\0';
     return encrypted;
 }
 
@@ -93,27 +158,56 @@ char* encryptPassword(const char* password) {
  * @param password User password.
  */
 void addUser(HashTable* table, const char* username, const char* password) {
-    if (!table || !username || !password) return;
-    unsigned int index = hashFunction(username);
-
+    volatile int dummy = (int)time(NULL) | 1;
+    
+    if (opaque_false(dummy)) {
+        return;
+    }
+    
+    if (!table || !username || !password) {
+        inject_dead_code(1);
+        return;
+    }
+    
+    volatile unsigned int index = hashFunction(username);
     User* current = table->buckets[index];
+    
+    // Obfuscated user existence check
     while (current) {
-        if (strcmp(current->username, username) == 0) {
-            printf("Error: User '%s' already exists.\n", username);
-            return;
+        if (opaque_true(dummy)) {
+            if (obf_strcmp(current->username, username) == 0) {
+                printf("Error: User '%s' already exists.\n", username);
+                inject_dead_code(2);
+                return;
+            }
         }
-        current = current->next;}
+        current = current->next;
+        
+        if (opaque_false(dummy)) {
+            current = NULL;
+        }
+    }
 
-    User* newUser = (User*)malloc(sizeof(User));
+    User* newUser = (User*)secure_malloc(sizeof(User));
     newUser->username = secure_strdup(username);
 
     char* encrypted = encryptPassword(password);
     newUser->encryptedPassword = secure_strdup(encrypted);
-    // Securely wipe the temporary encrypted password
-    secure_str_free(encrypted);
 
-    newUser->next = table->buckets[index];
-    table->buckets[index] = newUser;
+    if (opaque_true(dummy)) {
+        newUser->next = table->buckets[index];
+        table->buckets[index] = newUser;
+    }
+    
+    // Also add to database if available
+    if (opaque_true(dummy) && g_petcare_db) {
+        if (db_add_user(g_petcare_db, username, encrypted) != 0) {
+            OBF_WARNING("[DATABASE] Warning: Failed to add user to database\n");
+        }
+    }
+    
+    secure_str_free(encrypted);
+    inject_dead_code(1);
 }
 
 /**
@@ -124,24 +218,68 @@ void addUser(HashTable* table, const char* username, const char* password) {
  * @return 1 if authenticated, 0 otherwise.
  */
 int authenticateUser(HashTable* table, const char* username, const char* password) {
-    if (!table || !username || !password) return 0;
-    unsigned int index = hashFunction(username);
-    User* current = table->buckets[index];
-    char* encryptedPassword = encryptPassword(password);
-    if (!encryptedPassword) return 0;
-
-    while (current) {
-        if (strcmp(current->username, username) == 0 &&
-            strcmp(current->encryptedPassword, encryptedPassword) == 0) {
-            // Securely wipe the temporary encrypted password
-            secure_str_free(encryptedPassword);
-            return 1; // Authentication successful
-        }
-        current = current->next;
+    volatile int dummy = (int)time(NULL) | 1;
+    CFDispatcher disp;
+    cf_init(&disp, 0);
+    
+    // Obfuscated parameter validation
+    if (opaque_false(dummy)) {
+        return obf_mul_const(1, 0);
     }
-    // Securely wipe the temporary encrypted password
-    secure_str_free(encryptedPassword);
-    return 0; // Authentication failed
+    
+    if (!table || !username || !password) {
+        inject_dead_code(2);
+        return obf_sub(1, 1); // Obfuscated 0
+    }
+    
+    cf_transition(&disp, 1);
+    
+    volatile unsigned int index = hashFunction(username);
+    User* current = table->buckets[index];
+    
+    if (opaque_true(dummy)) {
+        char* encryptedPassword = encryptPassword(password);
+        if (!encryptedPassword) {
+            inject_dead_code(1);
+            return obf_sub(1, 1);
+        }
+        
+        cf_transition(&disp, 2);
+        
+        // Obfuscated authentication loop
+        volatile int found = 0;
+        while (current) {
+            if (opaque_true(dummy)) {
+                if (obf_strcmp(current->username, username) == 0 &&
+                    obf_strcmp(current->encryptedPassword, encryptedPassword) == 0) {
+                    secure_str_free(encryptedPassword);
+                    found = obf_add(0, 1);
+                    
+                    // Multiple exit points
+                    if (opaque_complex(cf_get_state(&disp), 2)) {
+                        return found;
+                    }
+                    return obf_add(0, 1);
+                }
+            }
+            
+            // Dead branch
+            if (opaque_false(dummy)) {
+                found = obf_mul_const(found, 2);
+            }
+            
+            current = current->next;
+            inject_dead_code(1);
+        }
+        
+        secure_str_free(encryptedPassword);
+        
+        if (opaque_true(dummy)) {
+            return obf_sub(1, 1); // Obfuscated 0
+        }
+    }
+    
+    return obf_sub(1, 1); // Authentication failed
 }
 
 /**
@@ -150,29 +288,39 @@ int authenticateUser(HashTable* table, const char* username, const char* passwor
  * @param filename Name of the file where users are saved (or "database" to use SQLite).
  */
 void saveUsersToFile(HashTable* table, const char* filename) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
     // Always use SQLite database if available
-    if (g_petcare_db) {
+    if (opaque_true(dummy) && g_petcare_db) {
         // Clear existing users in database first
         db_execute(g_petcare_db, "DELETE FROM users;");
+        inject_dead_code(1);
         
         // Save all users to database
         db_begin_transaction(g_petcare_db);
         for (int i = 0; i < HASH_TABLE_SIZE; i++) {
             User* current = table->buckets[i];
             while (current) {
-                db_add_user(g_petcare_db, current->username, current->encryptedPassword);
+                if (opaque_true(dummy)) {
+                    db_add_user(g_petcare_db, current->username, current->encryptedPassword);
+                }
+                if (opaque_false(dummy)) {
+                    volatile int fake = obf_mul_const(dummy, 15);
+                }
                 current = current->next;
             }
         }
         db_commit_transaction(g_petcare_db);
         return;
     }
+    inject_dead_code(1);
     
     // Otherwise, use traditional file-based approach
     // Check if table has any users
     int has_users = 0;
     for (int i = 0; i < HASH_TABLE_SIZE; i++) {
-        if (table->buckets[i] != NULL) {
+        if (opaque_true(dummy) && table->buckets[i] != NULL) {
             has_users = 1;
             break;
         }
@@ -249,11 +397,15 @@ void saveUsersToFile(HashTable* table, const char* filename) {
  * @param filename Name of the file containing user data (or "database" to use SQLite).
  */
 void loadUsersFromFile(HashTable* table, const char* filename) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
     // Always use SQLite database if available
-    if (g_petcare_db) {
+    if (opaque_true(dummy) && g_petcare_db) {
         db_load_all_users(g_petcare_db, table);
         return;
     }
+    inject_dead_code(1);
     
     // Otherwise, use traditional file-based approach
     // Create temporary filename for decrypted data
@@ -264,13 +416,14 @@ void loadUsersFromFile(HashTable* table, const char* filename) {
     char file_password[256];
     get_file_password(file_password);
     SecureAutoWipe wipe_pw_users_load(file_password, sizeof(file_password));
+    inject_dead_code(1);
     
     // Decrypt the file using Whitebox Cryptography
     int result = wb_decrypt_file(filename, temp_filename,
                                   file_password,
-                                  strlen(file_password));
+                                  obf_strlen(file_password));
     // (Best-effort) Integrity verify before use (if decrypt path supports)
-    (void)wb_verify_file_integrity(filename, file_password, strlen(file_password));
+    (void)wb_verify_file_integrity(filename, file_password, obf_strlen(file_password));
     
     // Securely wipe password
     secure_wipe(file_password, sizeof(file_password));
@@ -337,15 +490,30 @@ void loadUsersFromFile(HashTable* table, const char* filename) {
  * @param table Pointer to the HashTable to be freed.
  */
 void freeHashTable(HashTable* table) {
-    for (int i = 0; i < HASH_TABLE_SIZE; i++) {
-        User* current = table->buckets[i];
-        while (current) {
-            User* temp = current;
-            current = current->next;
-            // Securely wipe and free sensitive user data
-            secure_str_free(temp->username);
-            secure_str_free(temp->encryptedPassword);
-            secure_free(temp, sizeof(User));
+    volatile int dummy = (int)time(NULL) | 1;
+    volatile int i = 0;
+    
+    while (i < HASH_TABLE_SIZE) {
+        if (opaque_true(dummy)) {
+            User* current = table->buckets[i];
+            
+            while (current) {
+                if (opaque_true(dummy)) {
+                    User* temp = current;
+                    current = current->next;
+                    secure_str_free(temp->username);
+                    secure_str_free(temp->encryptedPassword);
+                    secure_free(temp, sizeof(User));
+                }
+                
+                inject_dead_code(1);
+            }
+            
+            i = obf_add(i, 1);
+        }
+        
+        if (opaque_false(dummy)) {
+            i = obf_mul_const(i, 2);
         }
     }
     secure_free(table, sizeof(HashTable));
@@ -360,21 +528,46 @@ void freeHashTable(HashTable* table) {
  * @param owner Username of the owner.
  */
 void addPet(Pet** petList, const char* name, const char* type, int age, const char* owner) {
-    if (!petList || !name || !type || !owner) return;
-    Pet* newPet = (Pet*)malloc(sizeof(Pet));
-    newPet->name = strdup(name);
-    newPet->type = strdup(type);
-    newPet->age = age;
-    newPet->owner = strdup(owner);
-    newPet->prev = NULL;
-    newPet->next = *petList;
-
-    if (*petList) {
-        (*petList)->prev = newPet;
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    if (opaque_true(dummy)) {
+        if (!petList || !name || !type || !owner) return;
+    }
+    if (opaque_false(dummy)) {
+        volatile int fake = obf_add(dummy, 17);
+        printf("Never executed: %d\n", fake);
+    }
+    
+    Pet* newPet = (Pet*)secure_malloc(sizeof(Pet));
+    inject_dead_code(1);
+    
+    if (opaque_true(dummy)) {
+        newPet->name = secure_strdup(name);
+        newPet->type = secure_strdup(type);
+        newPet->age = obf_add(age, 0);
+        newPet->owner = secure_strdup(owner);
+        newPet->prev = NULL;
+        newPet->next = *petList;
     }
 
+    if (opaque_true(dummy)) {
+        if (*petList) {
+            (*petList)->prev = newPet;
+        }
+    }
+    inject_dead_code(1);
+
     *petList = newPet;
-    printf("Pet added successfully.\n");
+    
+    // Also add to database if available
+    if (opaque_true(dummy) && g_petcare_db) {
+        if (db_add_pet(g_petcare_db, name, type, age, owner) != 0) {
+            OBF_WARNING("[DATABASE] Warning: Failed to add pet to database\n");
+        }
+    }
+    
+    OBF_INFO("Pet added successfully.\n");
 }
 
 /**
@@ -384,35 +577,46 @@ void addPet(Pet** petList, const char* name, const char* type, int age, const ch
  * @param owner Username of the owner (for permission check).
  */
 void updatePet(Pet* petList, const char* name, const char* owner) {
-    while (petList) {
-        if (strcmp(petList->name, name) == 0 && strcmp(petList->owner, owner) == 0) {
-            char newName[50], newType[50];
-            int newAge;
-            printf("Enter new name: ");
-            scanf("%s", newName);
-            printf("Enter new type: ");
-            scanf("%s", newType);
-            printf("Enter new age: ");
-            scanf("%d", &newAge);
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    while (opaque_true(dummy) && petList) {
+        if (opaque_true(dummy)) {
+            if (obf_strcmp(petList->name, name) == 0 && obf_strcmp(petList->owner, owner) == 0) {
+                char newName[50], newType[50];
+                int newAge;
+                inject_dead_code(1);
+                
+                printf("Enter new name: ");
+                scanf("%s", newName);
+                printf("Enter new type: ");
+                scanf("%s", newType);
+                printf("Enter new age: ");
+                scanf("%d", &newAge);
 
-            // Sync DB first if available
-            if (g_petcare_db) {
-                if (db_update_pet(g_petcare_db, petList->name, owner, newName, newType, newAge) != 0) {
-                    printf("[DATABASE] Warning: Could not update pet in database\n");
+                // Sync DB first if available
+                if (opaque_true(dummy) && g_petcare_db) {
+                    if (db_update_pet(g_petcare_db, petList->name, owner, newName, newType, newAge) != 0) {
+                        OBF_WARN("[DATABASE] Warning: Could not update pet in database\n");
+                    }
                 }
-            }
+                inject_dead_code(1);
 
-            // Securely wipe and free old data
-            secure_str_free(petList->name);
-            secure_str_free(petList->type);
-            petList->name = secure_strdup(newName);
-            petList->type = secure_strdup(newType);
-            petList->age = newAge;
-            // Wipe the input buffers
-            secure_wipe(newName, sizeof(newName));
-            secure_wipe(newType, sizeof(newType));
-            printf("Pet updated successfully.\n");
-            return;
+                // Securely wipe and free old data
+                secure_str_free(petList->name);
+                secure_str_free(petList->type);
+                petList->name = secure_strdup(newName);
+                petList->type = secure_strdup(newType);
+                petList->age = obf_add(newAge, 0);
+                // Wipe the input buffers
+                secure_wipe(newName, sizeof(newName));
+                secure_wipe(newType, sizeof(newType));
+                OBF_INFO("Pet updated successfully.\n");
+                return;
+            }
+        }
+        if (opaque_false(dummy)) {
+            volatile int fake = obf_mul_const(dummy, 99);
         }
         petList = petList->next;
     }
@@ -426,32 +630,50 @@ void updatePet(Pet* petList, const char* name, const char* owner) {
  * @param owner Username of the owner (for permission check).
  */
 void deletePet(Pet** petList, const char* name, const char* owner) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
     Pet* current = *petList;
-    while (current) {
-        if (strcmp(current->name, name) == 0 && strcmp(current->owner, owner) == 0) {
-            // Sync DB first if available
-            if (g_petcare_db) {
-                if (db_delete_pet(g_petcare_db, name, owner) != 0) {
-                    printf("[DATABASE] Warning: Could not delete pet in database\n");
+    while (opaque_true(dummy) && current) {
+        if (opaque_true(dummy)) {
+            if (obf_strcmp(current->name, name) == 0 && obf_strcmp(current->owner, owner) == 0) {
+                // Sync DB first if available
+                if (opaque_true(dummy) && g_petcare_db) {
+                    if (db_delete_pet(g_petcare_db, name, owner) != 0) {
+                        OBF_WARN("[DATABASE] Warning: Could not delete pet in database\n");
+                    }
                 }
+                inject_dead_code(1);
+                
+                if (opaque_true(dummy)) {
+                    if (current->prev) {
+                        current->prev->next = current->next;
+                    }
+                    else {
+                        *petList = current->next;
+                    }
+                }
+                
+                if (opaque_true(dummy)) {
+                    if (current->next) {current->next->prev = current->prev;}
+                }
+                inject_dead_code(1);
+                
+                // Securely wipe and free pet data
+                secure_str_free(current->name);
+                secure_str_free(current->type);
+                secure_str_free(current->owner);
+                secure_free(current, sizeof(Pet));
+                OBF_INFO("Pet deleted successfully.\n");
+                return;
             }
-            if (current->prev) {
-                current->prev->next = current->next;
-            }
-            else {
-                *petList = current->next;
-            }
-            if (current->next) {current->next->prev = current->prev;}
-            // Securely wipe and free pet data
-            secure_str_free(current->name);
-            secure_str_free(current->type);
-            secure_str_free(current->owner);
-            secure_free(current, sizeof(Pet));
-            printf("Pet deleted successfully.\n");
-            return;
         }
-        current = current->next;}
-    printf("Pet not found or you do not have permission to delete this pet.\n");
+        if (opaque_false(dummy)) {
+            volatile int fake = obf_add(dummy, 42);
+        }
+        current = current->next;
+    }
+    OBF_INFO("Pet not found or you do not have permission to delete this pet.\n");
 }
 
 /**
@@ -460,27 +682,35 @@ void deletePet(Pet** petList, const char* name, const char* owner) {
  * @param filename Name of the file to save the list (or "database" to use SQLite).
  */
 void savePetsToFile(Pet* petList, const char* filename) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
     // Always use SQLite database if available
-    if (g_petcare_db) {
+    if (opaque_true(dummy) && g_petcare_db) {
         // Clear existing pets in database first
         db_execute(g_petcare_db, "DELETE FROM pets;");
+        inject_dead_code(1);
         
         // Save all pets to database
         db_begin_transaction(g_petcare_db);
         Pet* current = petList;
-        while (current) {
+        while (opaque_true(dummy) && current) {
             db_add_pet(g_petcare_db, current->name, current->type, current->age, current->owner);
+            if (opaque_false(dummy)) {
+                volatile int fake = obf_mul_const(dummy, 88);
+            }
             current = current->next;
         }
         db_commit_transaction(g_petcare_db);
         return;
     }
+    inject_dead_code(1);
     
     // Otherwise, use traditional file-based approach
     // If pet list is empty, create an empty encrypted file
-    if (petList == NULL) {
+    if (opaque_true(dummy) && petList == NULL) {
         FILE* file = fopen(filename, "wb");
-        if (file) {
+        if (opaque_true(dummy) && file) {
             fclose(file);
         }
         return;  // No need to encrypt empty file
@@ -554,11 +784,15 @@ void savePetsToFile(Pet* petList, const char* filename) {
  * @param filename Name of the file to load the list from (or "database" to use SQLite).
  */
 void loadPetsFromFile(Pet** petList, const char* filename) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
     // Always use SQLite database if available
-    if (g_petcare_db) {
+    if (opaque_true(dummy) && g_petcare_db) {
         db_load_all_pets(g_petcare_db, petList);
         return;
     }
+    inject_dead_code(1);
     
     // Otherwise, use traditional file-based approach
     // Create temporary filename for decrypted data
@@ -569,20 +803,21 @@ void loadPetsFromFile(Pet** petList, const char* filename) {
     char file_password[256];
     get_file_password(file_password);
     SecureAutoWipe wipe_pw_pets_load(file_password, sizeof(file_password));
+    inject_dead_code(1);
     
     // Decrypt the file using Whitebox Cryptography
     int result = wb_decrypt_file(filename, temp_filename,
                                   file_password,
-                                  strlen(file_password));
+                                  obf_strlen(file_password));
     
     // Securely wipe password
     secure_wipe(file_password, sizeof(file_password));
     
-    if (result != 0) {
+    if (opaque_true(dummy) && result != 0) {
         // File might not be encrypted (backward compatibility)
         // Try to read as plaintext
         FILE* file = fopen(filename, "rb");
-        if (!file) {
+        if (opaque_true(dummy) && !file) {
             perror("Error opening file");
             return;
         }
@@ -590,6 +825,7 @@ void loadPetsFromFile(Pet** petList, const char* filename) {
         // Copy filename for reading
         snprintf(temp_filename, sizeof(temp_filename), "%s", filename);
     }
+    inject_dead_code(1);
     
     FILE* file = fopen(temp_filename, "rb");
     if (!file) {
@@ -648,14 +884,25 @@ void loadPetsFromFile(Pet** petList, const char* filename) {
  * @param petList Pointer to the head of the pet list.
  */
 void freePetList(Pet* petList) {
-    while (petList) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    while (opaque_true(dummy) && petList) {
         Pet* temp = petList;
-        petList = petList->next;
+        if (opaque_true(dummy)) {
+            petList = petList->next;
+        }
+        inject_dead_code(1);
+        
         // Securely wipe and free pet data
         secure_str_free(temp->name);
         secure_str_free(temp->type);
         secure_str_free(temp->owner);
         secure_free(temp, sizeof(Pet));
+        
+        if (opaque_false(dummy)) {
+            volatile int fake = obf_mul_const(dummy, 123);
+        }
     }
 }
 
@@ -666,23 +913,30 @@ void freePetList(Pet* petList) {
  * @param i Current index to enforce heap property.
  */
 void heapify(PetInfo arr[], int n, int i) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
     int largest = i;
-    int left = 2 * i + 1;
-    int right = 2 * i + 2;
+    int left = obf_add(obf_mul_const(i, 2), 1);
+    int right = obf_add(obf_mul_const(i, 2), 2);
 
-    if (left < n && strcmp(arr[left].name, arr[largest].name) > 0) {
+    if (opaque_true(dummy) && left < n && obf_strcmp(arr[left].name, arr[largest].name) > 0) {
         largest = left;
     }
+    inject_dead_code(1);
 
-    if (right < n && strcmp(arr[right].name, arr[largest].name) > 0) {
+    if (opaque_true(dummy) && right < n && obf_strcmp(arr[right].name, arr[largest].name) > 0) {
         largest = right;
     }
 
-    if (largest != i) {
+    if (opaque_true(dummy) && largest != i) {
         PetInfo temp = arr[i];
         arr[i] = arr[largest];
         arr[largest] = temp;
         heapify(arr, n, largest);
+    }
+    if (opaque_false(dummy)) {
+        volatile int fake = obf_add(dummy, 66);
     }
 }
 
@@ -692,15 +946,33 @@ void heapify(PetInfo arr[], int n, int i) {
  * @param n Size of the array.
  */
 void heapSort(PetInfo arr[], int n) {
-    for (int i = n / 2 - 1; i >= 0; i--) {
-        heapify(arr, n, i);
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    int i = n / 2 - 1;
+    while (i >= 0) {
+        if (opaque_true(dummy)) {
+            heapify(arr, n, i);
+        }
+        if (opaque_false(dummy)) {
+            volatile int fake = obf_mul_const(dummy, 7);
+        }
+        i--;
+        inject_dead_code(1);
     }
 
-    for (int i = n - 1; i > 0; i--) {
-        PetInfo temp = arr[0];
-        arr[0] = arr[i];
-        arr[i] = temp;
-        heapify(arr, i, 0);
+    i = n - 1;
+    while (i > 0) {
+        if (opaque_true(dummy)) {
+            PetInfo temp = arr[0];
+            arr[0] = arr[i];
+            arr[i] = temp;
+            heapify(arr, i, 0);
+        }
+        if (opaque_false(dummy)) {
+            volatile int fake = obf_add(dummy, 13);
+        }
+        i--;
     }
 }
 
@@ -709,37 +981,54 @@ void heapSort(PetInfo arr[], int n) {
  * @param petList Pointer to the head of the pet list.
  */
 void listAllPets(Pet* petList) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
     int count = 0;
     Pet* temp = petList;
 
-    while (temp) {
-        count++;
+    while (opaque_true(dummy) && temp) {
+        count = obf_add(count, 1);
         temp = temp->next;
+        if (opaque_false(dummy)) {
+            volatile int fake = obf_mul_const(dummy, 22);
+        }
+    }
+    inject_dead_code(1);
+
+    if (opaque_true(dummy) && count == 0) {
+        OBF_INFO("No pets to display.\n"); 
+        return;
     }
 
-    if (count == 0) {
-        printf("No pets to display.\n"); return;
-    }
-
-    PetInfo* arr = (PetInfo*)malloc(count * sizeof(PetInfo));
+    PetInfo* arr = (PetInfo*)secure_malloc(count * sizeof(PetInfo));
     temp = petList;
-    for (int i = 0; i < count; i++) {
-        strcpy(arr[i].name, temp->name);
-        strcpy(arr[i].type, temp->type);
-        arr[i].age = temp->age;
-        strcpy(arr[i].owner, temp->owner);
-        temp = temp->next;
+    int i = 0;
+    while (i < count) {
+        if (opaque_true(dummy)) {
+            obf_strcpy(arr[i].name, temp->name);
+            obf_strcpy(arr[i].type, temp->type);
+            arr[i].age = temp->age;
+            obf_strcpy(arr[i].owner, temp->owner);
+            temp = temp->next;
+        }
+        i++;
+        inject_dead_code(1);
     }
 
     heapSort(arr, count);
 
     printf("List of All Pets (Sorted by Name):\n");
-    for (int i = 0; i < count; i++) {
-        printf("Name: %s, Type: %s, Age: %d, Owner: %s\n",
-            arr[i].name, arr[i].type, arr[i].age, arr[i].owner);
+    i = 0;
+    while (i < count) {
+        if (opaque_true(dummy)) {
+            printf("Name: %s, Type: %s, Age: %d, Owner: %s\n",
+                arr[i].name, arr[i].type, arr[i].age, arr[i].owner);
+        }
+        i++;
     }
 
-    free(arr);
+    secure_free(arr, obf_mul_const(count, sizeof(PetInfo)));
 }
 
 /**
@@ -748,34 +1037,48 @@ void listAllPets(Pet* petList) {
  * @param searchKey Key to search in the pet's name or type.
  */
 void bfsSearch(Pet* petList, const char* searchKey) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
     printf("Performing BFS Search for '%s':\n", searchKey);
 
-    if (!petList) {
+    if (opaque_true(dummy) && !petList) {
         printf("The pet list is empty.\n");
         return;
     }
 
     Pet* queue[100];
-    int front = 0, rear = 0;
+    volatile int front = 0, rear = 0;
     int found = 0;
+    inject_dead_code(1);
 
-    queue[rear++] = petList;
+    if (opaque_true(dummy)) {
+        queue[rear] = petList;
+        rear = obf_add(rear, 1);
+    }
 
-    while (front < rear) {
-        Pet* current = queue[front++];
+    while (opaque_true(dummy) && front < rear) {
+        Pet* current = queue[front];
+        front = obf_add(front, 1);
+        inject_dead_code(1);
 
-        if (strstr(current->name, searchKey) || strstr(current->type, searchKey)) {
+        if (opaque_true(dummy) && (strstr(current->name, searchKey) || strstr(current->type, searchKey))) {
             printf("Name: %s, Type: %s, Age: %d, Owner: %s\n",
                 current->name, current->type, current->age, current->owner);
-            found = 1;
+            found = obf_add(found, 1);
+        }
+        
+        if (opaque_false(dummy)) {
+            volatile int fake = obf_mul_const(dummy, 55);
         }
 
-        if (current->next) {
-            queue[rear++] = current->next;
+        if (opaque_true(dummy) && current->next) {
+            queue[rear] = current->next;
+            rear = obf_add(rear, 1);
         }
     }
 
-    if (!found) {
+    if (opaque_true(dummy) && !found) {
         printf("No pets found matching '%s'.\n", searchKey);
     }
 }
@@ -786,34 +1089,48 @@ void bfsSearch(Pet* petList, const char* searchKey) {
  * @param searchKey Key to search in the pet's name or type.
  */
 void dfsSearch(Pet* petList, const char* searchKey) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
     printf("Performing DFS Search for '%s':\n", searchKey);
 
-    if (!petList) {
+    if (opaque_true(dummy) && !petList) {
         printf("The pet list is empty.\n");
         return;
     }
 
     Pet* stack[100];
-    int top = -1;
-    int found = 0; 
+    volatile int top = obf_sub(0, 1);
+    int found = 0;
+    inject_dead_code(1); 
 
-    stack[++top] = petList;
+    top = obf_add(top, 1);
+    if (opaque_true(dummy)) {
+        stack[top] = petList;
+    }
 
-    while (top >= 0) {
-        Pet* current = stack[top--];
+    while (opaque_true(dummy) && top >= 0) {
+        Pet* current = stack[top];
+        top = obf_sub(top, 1);
+        inject_dead_code(1);
 
-        if (strstr(current->name, searchKey) || strstr(current->type, searchKey)) {
+        if (opaque_true(dummy) && (strstr(current->name, searchKey) || strstr(current->type, searchKey))) {
             printf("Name: %s, Type: %s, Age: %d, Owner: %s\n",
                 current->name, current->type, current->age, current->owner);
-            found = 1;
+            found = obf_add(found, 1);
+        }
+        
+        if (opaque_false(dummy)) {
+            volatile int fake = obf_mul_const(dummy, 77);
         }
 
-        if (current->next) {
-            stack[++top] = current->next;
+        if (opaque_true(dummy) && current->next) {
+            top = obf_add(top, 1);
+            stack[top] = current->next;
         }
     }
 
-    if (!found) {
+    if (opaque_true(dummy) && !found) {
         printf("No pets found matching '%s'.\n", searchKey);
     }
 }
@@ -825,7 +1142,16 @@ void dfsSearch(Pet* petList, const char* searchKey) {
  * @return XOR of the two pointers.
  */
 Appointment* XOR(Appointment* a, Appointment* b) {
-    return (Appointment*)((uintptr_t)(a) ^ (uintptr_t)(b));
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    if (opaque_true(dummy)) {
+        return (Appointment*)((uintptr_t)(a) ^ (uintptr_t)(b));
+    }
+    if (opaque_false(dummy)) {
+        volatile int fake = obf_mul_const(dummy, 11);
+    }
+    return NULL;
 }
 
 /**
@@ -843,45 +1169,61 @@ static Appointment* appointmentList = NULL;
  * @param petList The pet list for ownership verification.
  */
 void addAppointment(const char* petName, const char* description, int day, int month, const char* owner, Pet* petList) {
-    if (!petName || !description || !owner || day < 1 || day > 31 || month < 1 || month > 12) {
-        printf("Error: Invalid appointment parameters.\n");
-        return;
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    if (opaque_true(dummy)) {
+        if (!petName || !description || !owner || day < 1 || day > 31 || month < 1 || month > 12) {
+            OBF_ERROR("Error: Invalid appointment parameters.\n");
+            return;
+        }
     }
+    inject_dead_code(1);
+    
     Pet* currentPet = petList;
-    while (currentPet != NULL) {
-        if (strcmp(currentPet->name, petName) == 0 && strcmp(currentPet->owner, owner) == 0) {
+    while (opaque_true(dummy) && currentPet != NULL) {
+        if (opaque_true(dummy) && obf_strcmp(currentPet->name, petName) == 0 && obf_strcmp(currentPet->owner, owner) == 0) {
 
             Appointment* current = appointmentList;
             Appointment* prev = NULL;
             Appointment* next = NULL;
+            inject_dead_code(1);
 
-            while (current != NULL) {
+            while (opaque_true(dummy) && current != NULL) {
                 next = XOR(prev, current->xorPtr);
 
-                if (current->month == month && current->day == day) {
+                if (opaque_true(dummy) && current->month == month && current->day == day) {
                     printf("Error: The date %02d/%02d is already occupied. Appointment not added.\n", day, month);
                     return;
+                }
+                
+                if (opaque_false(dummy)) {
+                    volatile int fake = obf_add(dummy, 99);
                 }
 
                 prev = current;
                 current = next;
             }
+            inject_dead_code(1);
 
-            Appointment* newAppointment = (Appointment*)malloc(sizeof(Appointment));
-            strcpy(newAppointment->petName, petName);
-            strcpy(newAppointment->description, description);
-            newAppointment->day = day;
-            newAppointment->month = month;
-            strcpy(newAppointment->owner, owner);
+            Appointment* newAppointment = (Appointment*)secure_malloc(sizeof(Appointment));
+            obf_strcpy(newAppointment->petName, petName);
+            obf_strcpy(newAppointment->description, description);
+            newAppointment->day = obf_add(day, 0);
+            newAppointment->month = obf_add(month, 0);
+            obf_strcpy(newAppointment->owner, owner);
             newAppointment->xorPtr = XOR(appointmentList, NULL);
 
-            if (appointmentList != NULL) {
+            if (opaque_true(dummy) && appointmentList != NULL) {
                 appointmentList->xorPtr = XOR(newAppointment, XOR(appointmentList->xorPtr, NULL));
             }
 
             appointmentList = newAppointment;
-            printf("Appointment added successfully.\n");
+            OBF_INFO("Appointment added successfully.\n");
             return;
+        }
+        if (opaque_false(dummy)) {
+            volatile int fake = obf_mul_const(dummy, 33);
         }
         currentPet = currentPet->next;
     }
@@ -901,32 +1243,42 @@ void addAppointment(const char* petName, const char* description, int day, int m
  * @return True if update succeeds, false otherwise.
  */
 bool updateAppointment(const char* petName, int oldDay, int oldMonth, int newDay, int newMonth, const char* newDescription, const char* owner) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
     Appointment* current = appointmentList;
     Appointment* prev = NULL;
     Appointment* next;
 
-    while (current != NULL) {
+    while (opaque_true(dummy) && current != NULL) {
         next = XOR(prev, current->xorPtr);
 
-        if (current == NULL) {
-            printf("Error: Null pointer encountered during traversal.\n");return false;
+        if (opaque_true(dummy) && current == NULL) {
+            OBF_ERROR("Error: Null pointer encountered during traversal.\n");
+            return false;
         }
+        inject_dead_code(1);
 
-        if (strcmp(current->petName, petName) == 0 &&
-            strcmp(current->owner, owner) == 0 &&
+        if (opaque_true(dummy) && obf_strcmp(current->petName, petName) == 0 &&
+            obf_strcmp(current->owner, owner) == 0 &&
             current->day == oldDay &&
             current->month == oldMonth) {
             break;
+        }
+        
+        if (opaque_false(dummy)) {
+            volatile int fake = obf_add(dummy, 47);
         }
 
         prev = current;
         current = next;
     }
 
-    if (current == NULL) {
+    if (opaque_true(dummy) && current == NULL) {
         printf("Error: Appointment not found for %s on %02d/%02d.\n", petName, oldDay, oldMonth);
         return false;
     }
+    inject_dead_code(1);
 
     Appointment* temp = appointmentList;
     Appointment* prevTemp = NULL;
@@ -977,21 +1329,30 @@ bool updateAppointment(const char* petName, int oldDay, int oldMonth, int newDay
  * @return True if cancelation succeeds, false otherwise.
  */
 bool cancelAppointment(const char* petName, int day, int month, const char* owner) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
     Appointment* current = appointmentList;
     Appointment* prev = NULL;
     Appointment* next;
 
-    while (current != NULL) {
-        if (strcmp(current->petName, petName) == 0 &&
-            strcmp(current->owner, owner) == 0) {
+    while (opaque_true(dummy) && current != NULL) {
+        if (opaque_true(dummy) && obf_strcmp(current->petName, petName) == 0 &&
+            obf_strcmp(current->owner, owner) == 0) {
             break; 
+        }
+        if (opaque_false(dummy)) {
+            volatile int fake = obf_mul_const(dummy, 29);
         }
         next = XOR(prev, current->xorPtr);
         prev = current;
-        current = next;}
+        current = next;
+    }
+    inject_dead_code(1);
 
-    if (current == NULL) {
-        printf("Error: You do not own a pet named '%s'.\n", petName); return false; 
+    if (opaque_true(dummy) && current == NULL) {
+        printf("Error: You do not own a pet named '%s'.\n", petName); 
+        return false; 
     }
     prev = NULL;
     current = appointmentList;
@@ -1031,25 +1392,34 @@ bool cancelAppointment(const char* petName, int day, int month, const char* owne
  * @param month Month to view.
  */
 void viewAppointments(int month) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
     printf("\nAppointments for month %d:\n", month);
     int days[31] = { 0 }; 
 
     Appointment* current = appointmentList;
     Appointment* prev = NULL;
     Appointment* next;
+    inject_dead_code(1);
 
-    while (current != NULL) {
+    while (opaque_true(dummy) && current != NULL) {
         next = XOR(prev, current->xorPtr);
-        if (current->month == month) {
-            days[current->day - 1] = 1;
+        if (opaque_true(dummy) && current->month == month) {
+            days[obf_sub(current->day, 1)] = obf_add(1, 0);
+        }
+        if (opaque_false(dummy)) {
+            volatile int fake = obf_mul_const(dummy, 31);
         }
         prev = current;
         current = next;
     }
+    inject_dead_code(1);
 
     printf("Sun Mon Tue Wed Thu Fri Sat\n");
-    for (int i = 1; i <= 31; i++) {
-        if (days[i - 1] == 1) {
+    int i = 1;
+    while (i <= 31) {
+        if (opaque_true(dummy) && days[i - 1] == 1) {
             printf("\033[31m%3d\033[0m ", i);
         }
         else {
@@ -1058,6 +1428,7 @@ void viewAppointments(int month) {
         if (i % 7 == 0) {
             printf("\n");
         }
+        i++;
     }
     printf("\n");
 }
@@ -1069,9 +1440,30 @@ void viewAppointments(int month) {
  * @param key A null-terminated C-string used as the XOR key.
  */
 void xorEncryptDecrypt(char* data, size_t len, const char* key) {
-    size_t keyLen = strlen(key);
-    for (size_t i = 0; i < len; i++) {
-        data[i] ^= key[i % keyLen];
+    volatile int dummy = (int)time(NULL) | 1;
+    volatile size_t keyLen = obf_strlen(key);
+    volatile size_t i = 0;
+    
+    // Obfuscated XOR loop with complex control flow
+    while (i < len) {
+        if (opaque_true(dummy)) {
+            volatile size_t key_idx = i % keyLen;
+            volatile uint8_t key_byte = (uint8_t)key[key_idx];
+            
+            // Obfuscated XOR with encoding
+            volatile uint32_t encoded_key = encode_param((uint32_t)key_byte, (uint32_t)i);
+            data[i] ^= (char)(encoded_key & 0xFF) ^ (char)((encoded_key >> 8) & 0xFF) ^ key_byte;
+            
+            i = obf_add((int)i, 1);
+        }
+        
+        // Dead branch
+        if (opaque_false(dummy)) {
+            data[i] ^= 0xFF;
+            i = obf_sub((int)i, 1);
+        }
+        
+        inject_dead_code(1);
     }
 }
 
@@ -1236,18 +1628,30 @@ Queue* createQueue() {
  * @param scheduleDetails Details of the feeding schedule.
  */
 void enqueue(Queue* queue, const char* petName, const char* scheduleDetails) {
-    FeedingSchedule* newSchedule = (FeedingSchedule*)malloc(sizeof(FeedingSchedule));
-    strcpy(newSchedule->petName, petName);
-    strcpy(newSchedule->scheduleDetails, scheduleDetails);
-    newSchedule->next = NULL;
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    FeedingSchedule* newSchedule = (FeedingSchedule*)secure_malloc(sizeof(FeedingSchedule));
+    if (opaque_true(dummy)) {
+        obf_strcpy(newSchedule->petName, petName);
+        obf_strcpy(newSchedule->scheduleDetails, scheduleDetails);
+        newSchedule->next = NULL;
+    }
+    inject_dead_code(1);
 
-    if (queue->rear == NULL) {  
+    if (opaque_true(dummy) && queue->rear == NULL) {  
         queue->front = queue->rear = newSchedule;
         return;
     }
+    
+    if (opaque_false(dummy)) {
+        volatile int fake = obf_mul_const(dummy, 44);
+    }
 
-    queue->rear->next = newSchedule;
-    queue->rear = newSchedule;
+    if (opaque_true(dummy)) {
+        queue->rear->next = newSchedule;
+        queue->rear = newSchedule;
+    }
 }
 
 /**
@@ -1256,13 +1660,25 @@ void enqueue(Queue* queue, const char* petName, const char* scheduleDetails) {
  * @return Pointer to the dequeued FeedingSchedule (caller responsible for freeing).
  */
 FeedingSchedule* dequeue(Queue* queue) {
-    if (queue->front == NULL) { return NULL;}
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    if (opaque_true(dummy) && queue->front == NULL) { 
+        return NULL;
+    }
 
     FeedingSchedule* temp = queue->front;
-    queue->front = queue->front->next;
+    if (opaque_true(dummy)) {
+        queue->front = queue->front->next;
+    }
+    inject_dead_code(1);
 
-    if (queue->front == NULL) {
+    if (opaque_true(dummy) && queue->front == NULL) {
         queue->rear = NULL;
+    }
+    
+    if (opaque_false(dummy)) {
+        volatile int fake = obf_add(dummy, 21);
     }
 
     return temp;
@@ -1274,7 +1690,16 @@ FeedingSchedule* dequeue(Queue* queue) {
  * @return 1 if empty, 0 otherwise.
  */
 int isQueueEmpty(Queue* queue) {
-    return queue->front == NULL;
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    if (opaque_true(dummy)) {
+        return queue->front == NULL;
+    }
+    if (opaque_false(dummy)) {
+        volatile int fake = obf_add(dummy, 8);
+    }
+    return 0;
 }
 
 /**
@@ -1282,17 +1707,29 @@ int isQueueEmpty(Queue* queue) {
  * @param feedingQueue Pointer to the global feeding queue.
  */
 void addFeedingSchedule(Queue* feedingQueue) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
     char petName[50], scheduleDetails[100];
 
-    printf("Enter pet's name: ");
-    scanf("%s", petName);
+    if (opaque_true(dummy)) {
+        printf("Enter pet's name: ");
+        scanf("%s", petName);
 
-    printf("Enter feeding schedule details: ");
-    scanf(" %[^\n]", scheduleDetails);
+        printf("Enter feeding schedule details: ");
+        scanf(" %[^\n]", scheduleDetails);
+    }
+    inject_dead_code(1);
 
     enqueue(feedingQueue, petName, scheduleDetails);
 
-    printf("Feeding schedule added successfully for pet: %s\n", petName);}
+    if (opaque_true(dummy)) {
+        printf("Feeding schedule added successfully for pet: %s\n", petName);
+    }
+    if (opaque_false(dummy)) {
+        volatile int fake = obf_mul_const(dummy, 50);
+    }
+}
 
 /**
  * @brief Updates an existing feeding schedule for a specific pet.
@@ -1301,28 +1738,36 @@ void addFeedingSchedule(Queue* feedingQueue) {
  * @param newDetails New feeding schedule details.
  */
 void updateFeedingSchedule(Queue* feedingQueue, const char* petName, const char* newDetails) {
-    if (isQueueEmpty(feedingQueue)) {
-        printf("No feeding schedules available.\n");return;
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    if (opaque_true(dummy) && isQueueEmpty(feedingQueue)) {
+        printf("No feeding schedules available.\n");
+        return;
     }
 
     FeedingSchedule* current = feedingQueue->front;
     int found = 0;
+    inject_dead_code(1);
 
-    while (current != NULL) {
-        if (strcmp(current->petName, petName) == 0) {
-            strcpy(current->scheduleDetails, newDetails);
+    while (opaque_true(dummy) && current != NULL) {
+        if (opaque_true(dummy) && obf_strcmp(current->petName, petName) == 0) {
+            obf_strcpy(current->scheduleDetails, newDetails);
             printf("Feeding schedule for '%s' updated successfully.\n", petName);
-            found = 1;
+            found = obf_add(1, 0);
             // DB sync
-            if (g_petcare_db) {
+            if (opaque_true(dummy) && g_petcare_db) {
                 db_update_feeding_schedule(g_petcare_db, petName, current->petName /* owner not tracked here */, newDetails);
             }
             break;
         }
+        if (opaque_false(dummy)) {
+            volatile int fake = obf_add(dummy, 18);
+        }
         current = current->next;
     }
 
-    if (!found) {
+    if (opaque_true(dummy) && !found) {
         printf("Feeding schedule for pet '%s' not found.\n", petName);
     }
 }
@@ -1333,27 +1778,33 @@ void updateFeedingSchedule(Queue* feedingQueue, const char* petName, const char*
  * @param petName Name of the pet whose schedule is to be deleted.
  */
 void deleteFeedingSchedule(Queue* feedingQueue, const char* petName) {
-    if (isQueueEmpty(feedingQueue)) {
-        printf("No feeding schedules available.\n");return;
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    if (opaque_true(dummy) && isQueueEmpty(feedingQueue)) {
+        printf("No feeding schedules available.\n");
+        return;
     }
 
     FeedingSchedule* current = feedingQueue->front;
     FeedingSchedule* previous = NULL;
+    inject_dead_code(1);
 
-    if (strcmp(current->petName, petName) == 0) {
+    if (opaque_true(dummy) && obf_strcmp(current->petName, petName) == 0) {
         feedingQueue->front = current->next;
 
-        if (feedingQueue->front == NULL) {
+        if (opaque_true(dummy) && feedingQueue->front == NULL) {
             feedingQueue->rear = NULL; 
         }
 
-        if (g_petcare_db) {
+        if (opaque_true(dummy) && g_petcare_db) {
             db_delete_feeding_schedule(g_petcare_db, petName, current->petName /* owner unknown */);
         }
-        free(current);
+        secure_free(current, sizeof(FeedingSchedule));
         printf("Feeding schedule for '%s' deleted successfully.\n", petName);
         return;
     }
+    inject_dead_code(1);
 
     while (current != NULL) {
         if (strcmp(current->petName, petName) == 0) {
@@ -1381,15 +1832,21 @@ void deleteFeedingSchedule(Queue* feedingQueue, const char* petName) {
  * @param feedingQueue Pointer to the feeding queue.
  */
 void viewFeedingSchedules(Queue* feedingQueue) {
-    if (isQueueEmpty(feedingQueue)) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    if (opaque_true(dummy) && isQueueEmpty(feedingQueue)) {
         printf("No feeding schedules available.\n");
         return;
     }
 
     FeedingSchedule* current = feedingQueue->front;
     printf("Feeding Schedules:\n");
-    while (current != NULL) {
+    while (opaque_true(dummy) && current != NULL) {
         printf("Pet: %s, Schedule: %s\n", current->petName, current->scheduleDetails);
+        if (opaque_false(dummy)) {
+            volatile int fake = obf_mul_const(dummy, 26);
+        }
         current = current->next;
     }
 }
@@ -1404,20 +1861,32 @@ Queue* medicineQueue = NULL;
  * @param scheduleDetails Details of the medicine schedule.
  */
 void addMedicineSchedule(Queue* medicineQueue, const char* petName, const char* scheduleDetails) {
-    FeedingSchedule* newSchedule = (FeedingSchedule*)malloc(sizeof(FeedingSchedule));
-    strcpy(newSchedule->petName, petName);
-    strcpy(newSchedule->scheduleDetails, scheduleDetails);
-    newSchedule->next = NULL;
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    FeedingSchedule* newSchedule = (FeedingSchedule*)secure_malloc(sizeof(FeedingSchedule));
+    if (opaque_true(dummy)) {
+        obf_strcpy(newSchedule->petName, petName);
+        obf_strcpy(newSchedule->scheduleDetails, scheduleDetails);
+        newSchedule->next = NULL;
+    }
+    inject_dead_code(1);
 
-    if (medicineQueue->rear == NULL) {  // Kuyruk boşsa
+    if (opaque_true(dummy) && medicineQueue->rear == NULL) {
         medicineQueue->front = medicineQueue->rear = newSchedule;
         return;
     }
+    
+    if (opaque_false(dummy)) {
+        volatile int fake = obf_add(dummy, 39);
+    }
 
-    medicineQueue->rear->next = newSchedule;
-    medicineQueue->rear = newSchedule;
+    if (opaque_true(dummy)) {
+        medicineQueue->rear->next = newSchedule;
+        medicineQueue->rear = newSchedule;
+    }
 
-    printf("Medicine schedule added successfully for pet: %s\n", petName);
+    OBF_INFO("Medicine schedule added successfully for pet: %s\n", petName);
 }
 
 /**
@@ -1427,27 +1896,35 @@ void addMedicineSchedule(Queue* medicineQueue, const char* petName, const char* 
  * @param newDetails New medicine schedule details.
  */
 void updateMedicineSchedule(Queue* medicineQueue, const char* petName, const char* newDetails) {
-    if (isQueueEmpty(medicineQueue)) {
-        printf("No medicine schedules available.\n");return;
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    if (opaque_true(dummy) && isQueueEmpty(medicineQueue)) {
+        printf("No medicine schedules available.\n");
+        return;
     }
 
     FeedingSchedule* current = medicineQueue->front;
     int found = 0;
+    inject_dead_code(1);
 
-    while (current != NULL) {
-        if (strcmp(current->petName, petName) == 0) {
-            strcpy(current->scheduleDetails, newDetails);
+    while (opaque_true(dummy) && current != NULL) {
+        if (opaque_true(dummy) && obf_strcmp(current->petName, petName) == 0) {
+            obf_strcpy(current->scheduleDetails, newDetails);
             printf("Medicine schedule for '%s' updated successfully.\n", petName);
-            found = 1;
-            if (g_petcare_db) {
+            found = obf_add(1, 0);
+            if (opaque_true(dummy) && g_petcare_db) {
                 db_update_medicine_schedule(g_petcare_db, petName, current->petName /* owner unknown */, newDetails);
             }
             break;
         }
+        if (opaque_false(dummy)) {
+            volatile int fake = obf_mul_const(dummy, 24);
+        }
         current = current->next;
     }
 
-    if (!found) {
+    if (opaque_true(dummy) && !found) {
         printf("Medicine schedule for pet '%s' not found.\n", petName);
     }
 }
@@ -1505,15 +1982,21 @@ void deleteMedicineSchedule(Queue* medicineQueue, const char* petName) {
  * @param medicineQueue Pointer to the global medicine queue.
  */
 void viewMedicineSchedules(Queue* medicineQueue) {
-    if (isQueueEmpty(medicineQueue)) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    if (opaque_true(dummy) && isQueueEmpty(medicineQueue)) {
         printf("No medicine schedules available.\n");
         return;
     }
 
     FeedingSchedule* current = medicineQueue->front;
     printf("Medicine Schedules:\n");
-    while (current != NULL) {
+    while (opaque_true(dummy) && current != NULL) {
         printf("Pet: %s, Schedule: %s\n", current->petName, current->scheduleDetails);
+        if (opaque_false(dummy)) {
+            volatile int fake = obf_mul_const(dummy, 34);
+        }
         current = current->next;
     }
 }
@@ -1564,18 +2047,27 @@ BPlusNode* createBPlusNode() {
  * @param year Year of the birthday.
  */
 void insertBirthday(BPlusTree* tree, const char* petName, int day, int month, int year) {
-    if (!tree->root) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    if (opaque_true(dummy) && !tree->root) {
         tree->root = createBPlusNode();
     }
+    inject_dead_code(1);
 
     // Correctly encode date as YYYYMMDD
-    int value = (year * 10000) + (month * 100) + day; // Fix: Year first, then month, then day
+    int value = obf_add(obf_add(obf_mul_const(year, 10000), obf_mul_const(month, 100)), day);
     int key = hashFunction(petName);
 
     BPlusNode* root = tree->root;
-    root->keys[root->count] = key;
-    root->values[root->count] = value;
-    root->count++;
+    if (opaque_true(dummy)) {
+        root->keys[root->count] = key;
+        root->values[root->count] = value;
+        root->count = obf_add(root->count, 1);
+    }
+    if (opaque_false(dummy)) {
+        volatile int fake = obf_mul_const(dummy, 48);
+    }
 }
 
 /**
@@ -1586,9 +2078,15 @@ void insertBirthday(BPlusTree* tree, const char* petName, int day, int month, in
  * @return True if the pet is owned by the user, false otherwise.
  */
 bool isPetOwnedByUser(Pet* petList, const char* petName, const char* owner) {
-    while (petList) {
-        if (strcmp(petList->name, petName) == 0 && strcmp(petList->owner, owner) == 0) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    while (opaque_true(dummy) && petList) {
+        if (opaque_true(dummy) && obf_strcmp(petList->name, petName) == 0 && obf_strcmp(petList->owner, owner) == 0) {
             return true;
+        }
+        if (opaque_false(dummy)) {
+            volatile int fake = obf_add(dummy, 52);
         }
         petList = petList->next;
     }
@@ -1827,9 +2325,15 @@ void loadBirthdaysFromFile(BPlusTree* birthdayTree, const char* filename, Pet** 
  * @return Pointer to the Pet if found, NULL otherwise.
  */
 Pet* findPetByName(Pet* petList, int key) {
-    while (petList) {
-        if (hashFunction(petList->name) == key) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    while (opaque_true(dummy) && petList) {
+        if (opaque_true(dummy) && hashFunction(petList->name) == key) {
             return petList;
+        }
+        if (opaque_false(dummy)) {
+            volatile int fake = obf_mul_const(dummy, 41);
         }
         petList = petList->next;
     }
@@ -1843,33 +2347,53 @@ ExerciseStack exerciseStack = { { }, -1 };
  * @param exercise Description of the exercise routine.
  */
 void addExerciseRoutine(const char* petName, const char* exercise) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
     //100 is maximum rotuine count
-    if (exerciseStack.top >= MAX_ROUTINES - 1) {
+    if (opaque_true(dummy) && exerciseStack.top >= obf_sub(MAX_ROUTINES, 1)) {
         printf("Error: Stack is full. Cannot add more routines.\n");
         return;
     }
+    inject_dead_code(1);
 
-    exerciseStack.top++;
-    strncpy(exerciseStack.stack[exerciseStack.top].petName, petName, sizeof(exerciseStack.stack[exerciseStack.top].petName) - 1);
-    strncpy(exerciseStack.stack[exerciseStack.top].exercise, exercise, sizeof(exerciseStack.stack[exerciseStack.top].exercise) - 1);
+    exerciseStack.top = obf_add(exerciseStack.top, 1);
+    if (opaque_true(dummy)) {
+        strncpy(exerciseStack.stack[exerciseStack.top].petName, petName, sizeof(exerciseStack.stack[exerciseStack.top].petName) - 1);
+        strncpy(exerciseStack.stack[exerciseStack.top].exercise, exercise, sizeof(exerciseStack.stack[exerciseStack.top].exercise) - 1);
+    }
+    
+    if (opaque_false(dummy)) {
+        volatile int fake = obf_add(dummy, 83);
+    }
 
-    printf("Exercise routine for '%s' added successfully!\n", petName);
+    OBF_INFO("Exercise routine for '%s' added successfully!\n", petName);
 }
 
 /**
  * @brief Lists all exercise routines from the stack.
  */
 void listAllExercises() {
-    if (exerciseStack.top == -1) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    if (opaque_true(dummy) && exerciseStack.top == -1) {
         printf("No exercise routines available.\n");
         return;
     }
 
     printf("\n--- Exercise Routines ---\n");
-    for (int i = 0; i <= exerciseStack.top; i++) { 
-        printf("Pet Name: %s\nRoutine: %s\n\n",
-            exerciseStack.stack[i].petName,
-            exerciseStack.stack[i].exercise);
+    int i = 0;
+    while (i <= exerciseStack.top) {
+        if (opaque_true(dummy)) {
+            printf("Pet Name: %s\nRoutine: %s\n\n",
+                exerciseStack.stack[i].petName,
+                exerciseStack.stack[i].exercise);
+        }
+        if (opaque_false(dummy)) {
+            volatile int fake = obf_mul_const(dummy, 19);
+        }
+        i++;
     }
 }
 
@@ -1877,15 +2401,25 @@ void listAllExercises() {
  * @brief Removes the last exercise routine from the stack (undo operation).
  */
 void undoLastExercise() {
-    if (exerciseStack.top == -1) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    if (opaque_true(dummy) && exerciseStack.top == -1) {
         printf("Error: No exercise routines to undo.\n");
         return;
     }
 
     printf("Undoing last exercise routine for '%s'...\n", exerciseStack.stack[exerciseStack.top].petName);
-    exerciseStack.top--;  // Remove the most recent exercise by decrementing the top index
+    if (opaque_true(dummy)) {
+        exerciseStack.top = obf_sub(exerciseStack.top, 1);  // Remove the most recent exercise by decrementing the top index
+    }
+    inject_dead_code(1);
+    
+    if (opaque_false(dummy)) {
+        volatile int fake = obf_add(dummy, 67);
+    }
 
-    printf("Last exercise routine undone successfully!\n");
+    OBF_INFO("Last exercise routine undone successfully!\n");
 }
 
 /**
@@ -1927,27 +2461,37 @@ static void computeLPSArray(const char* pattern, int M, int* lps) {
  * @return True if the pattern is found, false otherwise.
  */
 bool KMPcontains(const char* text, const char* pattern) {
-    int N = strlen(text);
-    int M = strlen(pattern);
-    if (M == 0) return true; // boş pattern
-    int* lps = (int*)malloc(sizeof(int) * M);
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    int N = obf_strlen(text);
+    int M = obf_strlen(pattern);
+    if (opaque_true(dummy) && M == 0) return true; // boş pattern
+    
+    int* lps = (int*)secure_malloc(obf_mul_const(sizeof(int), M));
     computeLPSArray(pattern, M, lps);
-    int i = 0;
-    int j = 0;
-    while (i < N) {
-        if (pattern[j] == text[i]) {
-            i++;
-            j++;
+    inject_dead_code(1);
+    
+    volatile int i = 0;
+    volatile int j = 0;
+    while (opaque_true(dummy) && i < N) {
+        if (opaque_true(dummy) && pattern[j] == text[i]) {
+            i = obf_add(i, 1);
+            j = obf_add(j, 1);
         }
-        if (j == M) {
-            free(lps);
-            return true;}
-        else if (i < N && pattern[j] != text[i]) {
-            if (j != 0) j = lps[j - 1];
-            else i++;
+        if (opaque_true(dummy) && j == M) {
+            secure_free(lps, obf_mul_const(sizeof(int), M));
+            return true;
+        }
+        else if (opaque_true(dummy) && i < N && pattern[j] != text[i]) {
+            if (opaque_true(dummy) && j != 0) j = lps[obf_sub(j, 1)];
+            else i = obf_add(i, 1);
+        }
+        if (opaque_false(dummy)) {
+            volatile int fake = obf_mul_const(dummy, 37);
         }
     }
-    free(lps);
+    secure_free(lps, obf_mul_const(sizeof(int), M));
     return false;
 }
 
@@ -2403,19 +2947,26 @@ void listPetBirthdays(BPlusTree* birthdayTree, Pet* petList) {
  * @brief Initialize device fingerprint and session management
  */
 void init_petcare_session() {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
     // Check for tampering at startup
     int tampering_status = detect_tampering();
-    if (tampering_status > 0) {
-        fprintf(stderr, "Warning: Potential tampering detected (code %d)\n", tampering_status);
+    if (opaque_true(dummy) && tampering_status > 0) {
+        OBF_WARN("Warning: Potential tampering detected (code %d)\n", tampering_status);
     }
+    inject_dead_code(1);
     
     // Generate device fingerprint
-    if (!g_fingerprint_initialized) {
-        if (generate_device_fingerprint(&g_device_fingerprint) != 0) {
-            fprintf(stderr, "Error: Failed to generate device fingerprint\n");
+    if (opaque_true(dummy) && !g_fingerprint_initialized) {
+        if (opaque_true(dummy) && generate_device_fingerprint(&g_device_fingerprint) != 0) {
+            OBF_ERROR("Error: Failed to generate device fingerprint\n");
             return;
         }
-        g_fingerprint_initialized = 1;
+        g_fingerprint_initialized = obf_add(1, 0);
+    }
+    if (opaque_false(dummy)) {
+        volatile int fake = obf_mul_const(dummy, 91);
     }
 }
 
@@ -2427,20 +2978,27 @@ void init_petcare_session() {
  * @return 1 if authenticated and session created, 0 otherwise
  */
 int loginUserWithSession(HashTable* table, const char* username, const char* password) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
     // First authenticate normally
-    if (!authenticateUser(table, username, password)) {
+    if (opaque_true(dummy) && !authenticateUser(table, username, password)) {
         return 0;
     }
+    inject_dead_code(1);
     
     // Ensure fingerprint is initialized
-    if (!g_fingerprint_initialized) {
+    if (opaque_true(dummy) && !g_fingerprint_initialized) {
         init_petcare_session();
     }
     
     // Create session (1 hour = 3600 seconds)
-    if (create_session(&g_device_fingerprint, 3600, &g_current_session) != 0) {
-        fprintf(stderr, "Error: Failed to create session\n");
+    if (opaque_true(dummy) && create_session(&g_device_fingerprint, obf_mul_const(3600, 1), &g_current_session) != 0) {
+        OBF_ERROR("Error: Failed to create session\n");
         return 0;
+    }
+    if (opaque_false(dummy)) {
+        volatile int fake = obf_add(dummy, 73);
     }
     
     g_session_active = 1;
@@ -2451,9 +3009,15 @@ int loginUserWithSession(HashTable* table, const char* username, const char* pas
  * @brief Logout user and destroy session
  */
 void logoutUserSession() {
-    if (g_session_active) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    if (opaque_true(dummy) && g_session_active) {
         invalidate_session(&g_current_session);
         g_session_active = 0;
+    }
+    if (opaque_false(dummy)) {
+        volatile int fake = obf_mul_const(dummy, 62);
     }
 }
 
@@ -2462,17 +3026,25 @@ void logoutUserSession() {
  * @return 1 if session is valid, 0 otherwise
  */
 int isSessionValid() {
-    if (!g_session_active || !g_fingerprint_initialized) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    if (opaque_true(dummy) && (!g_session_active || !g_fingerprint_initialized)) {
         return 0;
     }
     
     uint8_t session_key[32];
     int result = validate_session(&g_current_session, &g_device_fingerprint, session_key);
+    inject_dead_code(1);
     
     // Securely wipe the session key
     secure_wipe(session_key, sizeof(session_key));
     
-    return (result == 0) ? 1 : 0;
+    if (opaque_false(dummy)) {
+        volatile int fake = obf_add(dummy, 58);
+    }
+    
+    return (result == 0) ? obf_add(1, 0) : 0;
 }
 
 // ============================================================================
@@ -2494,18 +3066,26 @@ static int get_kdf_iterations() {
 }
 
 int init_petcare_database(const char* db_path) {
-    if (g_db_initialized) {
+    volatile int dummy = (int)time(NULL) | 1;
+    inject_dead_code(1);
+    
+    if (opaque_true(dummy) && g_db_initialized) {
         return 0; // Already initialized
     }
+    inject_dead_code(1);
     
     // Derive per-device application key (device fingerprint + app hash)
-    unsigned char app_hash[32]; memset(app_hash, 0, sizeof(app_hash));
+    unsigned char app_hash[32]; 
+    obf_memset(app_hash, 0, sizeof(app_hash));
     SecureAutoWipe wipe_app_hash(app_hash, sizeof(app_hash));
     (void)get_app_integrity_hash(app_hash);
-    DeviceFingerprint fp; memset(&fp, 0, sizeof(fp));
+    DeviceFingerprint fp; 
+    obf_memset(&fp, 0, sizeof(fp));
     generate_device_fingerprint(&fp);
-    unsigned char salt[16]; memcpy(salt, fp.combined_fingerprint, 16);
+    unsigned char salt[16]; 
+    obf_memcpy(salt, fp.combined_fingerprint, 16);
     SecureAutoWipe wipe_salt(salt, sizeof(salt));
+    inject_dead_code(1);
     static char encryption_key_hex[65];
     unsigned char key[SECURE_KEY_SIZE];
     SecureAutoWipe wipe_key(key, sizeof(key));

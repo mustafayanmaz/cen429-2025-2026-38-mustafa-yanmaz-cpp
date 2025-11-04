@@ -155,3 +155,25 @@ After WSL installation, right click and open WSL bash and run `7-build-app-linux
 ----
 
 $End-Of-File$
+
+## Security Documentation
+
+- docs/security/threat_model.md
+- docs/security/risk_matrix.md
+- docs/security/vulnerabilities.md
+
+### KDF Iteration Configuration
+
+The application derives encryption keys using PBKDF2‑HMAC‑SHA256. You can tune the iteration count with the `PETCARE_KDF_ITERS` environment variable.
+
+- Default: 20000
+- Minimum: 1000
+- Maximum: 1000000
+
+Example (Windows PowerShell):
+
+```powershell
+$env:PETCARE_KDF_ITERS = "50000"
+```
+
+Note: Higher iterations increase brute‑force resistance but also CPU cost during key derivation.
