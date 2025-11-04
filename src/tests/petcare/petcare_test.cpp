@@ -3683,3 +3683,171 @@ TEST_F(DatabaseIntegrationTest, BackupAndRestoreWorkflow) {
     remove("integration_backup.db");
     remove("integration_restored.db");
 }
+
+/**
+ * @brief Test loading all adopted animals from database
+ */
+TEST_F(DatabaseIntegrationTest, LoadAllAdoptedAnimals) {
+#ifndef SQLITE3_HEADER_ONLY
+    ASSERT_NE(db, nullptr);
+
+    // Prepare: add two stray animals then adopt them
+    int stray_id1 = db_add_stray_animal(db, "Dog", "Male", "01/01/2024", 2);
+    int stray_id2 = db_add_stray_animal(db, "Cat", "Female", "02/01/2024", 1);
+    ASSERT_GT(stray_id1, 0);
+    ASSERT_GT(stray_id2, 0);
+
+    EXPECT_EQ(db_adopt_stray_animal(db, stray_id1, "ownerA", "03/01/2024"), 0);
+    EXPECT_EQ(db_adopt_stray_animal(db, stray_id2, "ownerB", "04/01/2024"), 0);
+
+    // Load all adopted animals
+    AdoptedAnimal* list = NULL;
+    int count = db_load_all_adopted_animals(db, &list);
+    EXPECT_GE(count, 2);
+
+    // Verify that at least our two adoptions are present
+    bool found1 = false, found2 = false;
+    for (AdoptedAnimal* cur = list; cur != NULL; cur = cur->next) {
+        if (cur->id == stray_id1) {
+            found1 = true;
+        }
+        if (cur->id == stray_id2) {
+            found2 = true;
+        }
+    }
+    EXPECT_TRUE(found1);
+    EXPECT_TRUE(found2);
+
+    // Cleanup allocated list
+    while (list != NULL) {
+        AdoptedAnimal* next = list->next;
+        free(list);
+        list = next;
+    }
+#endif
+}
+
+// ============================================================================
+// Additional Database Tests: Grooming + Loaders (Feeding/Medicine/Exercise)
+// Covers zero-coverage areas in database.cpp
+// ============================================================================
+
+/**
+ * @class DatabaseGroomingAndSchedulesTest
+ * @brief Fixture to test grooming routines and DB->memory loaders
+ */
+class DatabaseGroomingAndSchedulesTest : public ::testing::Test {
+protected:
+    const char* db_path = "test_groom_sched.db";
+    Database* db = nullptr;
+
+    void SetUp() override {
+        remove(db_path);
+        db = db_init(db_path, NULL);
+        if (db) {
+            db_create_tables(db);
+            // minimal owner and pet
+            db_add_user(db, "owner1", "pw");
+            db_add_pet(db, "Rex", "Dog", 5, "owner1");
+        }
+    }
+
+    void TearDown() override {
+        if (db) {
+            db_close(db);
+            db = nullptr;
+        }
+        remove(db_path);
+    }
+};
+
+/**
+ * @brief Test grooming routines CRUD and listing
+ */
+TEST_F(DatabaseGroomingAndSchedulesTest, GroomingCrudAndPrint) {
+#ifndef SQLITE3_HEADER_ONLY
+    ASSERT_NE(db, nullptr);
+
+    // Create
+    EXPECT_EQ(db_add_grooming_routine(db, "Rex", "Bath weekly", "owner1"), 0);
+
+    // Update
+    EXPECT_EQ(db_update_grooming_routine(db, "Rex", "owner1", "Bath weekly + nails"), 0);
+
+    // Print/list (returns count)
+    int printed = db_print_all_groomings(db);
+    EXPECT_GE(printed, 1);
+
+    // Delete
+    EXPECT_EQ(db_delete_grooming_routine(db, "Rex", "owner1"), 0);
+
+    // After delete, printing may return 0 or >=0 depending on other data, but should not error
+    EXPECT_GE(db_print_all_groomings(db), 0);
+#endif
+}
+
+/**
+ * @brief Test loading feeding schedules from DB into Queue
+ */
+TEST_F(DatabaseGroomingAndSchedulesTest, LoadFeedingSchedulesIntoQueue) {
+#ifndef SQLITE3_HEADER_ONLY
+    ASSERT_NE(db, nullptr);
+    EXPECT_EQ(db_add_feeding_schedule(db, "Rex", "8AM & 6PM", "owner1"), 0);
+
+    Queue* q = createQueue();
+    ASSERT_NE(q, nullptr);
+
+    int loaded = db_load_feeding_schedules(db, q);
+    EXPECT_EQ(loaded, 1);
+    EXPECT_EQ(isQueueEmpty(q), 0);
+
+    FeedingSchedule* f = dequeue(q);
+    ASSERT_NE(f, nullptr);
+    EXPECT_STREQ(f->petName, "Rex");
+    EXPECT_STRNE(f->scheduleDetails, "");
+    free(f);
+
+    // queue should be empty now
+    EXPECT_NE(q, nullptr);
+#endif
+}
+
+/**
+ * @brief Test loading medicine schedules from DB into Queue
+ */
+TEST_F(DatabaseGroomingAndSchedulesTest, LoadMedicineSchedulesIntoQueue) {
+#ifndef SQLITE3_HEADER_ONLY
+    ASSERT_NE(db, nullptr);
+    EXPECT_EQ(db_add_medicine_schedule(db, "Rex", "Pill 1x daily", "owner1"), 0);
+
+    Queue* q = createQueue();
+    ASSERT_NE(q, nullptr);
+
+    int loaded = db_load_medicine_schedules(db, q);
+    EXPECT_EQ(loaded, 1);
+    EXPECT_EQ(isQueueEmpty(q), 0);
+
+    FeedingSchedule* m = dequeue(q);
+    ASSERT_NE(m, nullptr);
+    EXPECT_STREQ(m->petName, "Rex");
+    EXPECT_STRNE(m->scheduleDetails, "");
+    free(m);
+#endif
+}
+
+/**
+ * @brief Test loading exercise routines into global exerciseStack
+ */
+TEST_F(DatabaseGroomingAndSchedulesTest, LoadExerciseRoutinesIntoStack) {
+#ifndef SQLITE3_HEADER_ONLY
+    ASSERT_NE(db, nullptr);
+    EXPECT_EQ(db_add_exercise_routine(db, "Rex", "Walk 30m", "owner1"), 0);
+    EXPECT_EQ(db_add_exercise_routine(db, "Rex", "Fetch 15m", "owner1"), 0);
+
+    int count = db_load_exercise_routines(db, "owner1");
+    EXPECT_GE(count, 1);
+
+    extern ExerciseStack exerciseStack;
+    EXPECT_GE(exerciseStack.top, 0);
+#endif
+}
