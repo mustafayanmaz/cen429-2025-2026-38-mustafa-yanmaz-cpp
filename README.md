@@ -299,8 +299,6 @@ cen429-2025-2026-38-mustafa-yanmaz-cpp/
 | Coverage Type | Windows OS                                                             | Linux OS (WSL-Ubuntu 20.04)                                              |
 | ------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | Line Based    | ![Line Coverage](assets/codecoveragelibwin/badge_linecoverage.svg)     | ![Line Coverage](assets/codecoverageliblinux/badge_linecoverage.svg)     |
-| Branch Based  | ![Branch Coverage](assets/codecoveragelibwin/badge_branchcoverage.svg) | ![Branch Coverage](assets/codecoverageliblinux/badge_branchcoverage.svg) |
-| Method Based  | ![Method Coverage](assets/codecoveragelibwin/badge_methodcoverage.svg) | ![Method Coverage](assets/codecoverageliblinux/badge_methodcoverage.svg) |
 
 ### Documentation Coverage Ratios
 
