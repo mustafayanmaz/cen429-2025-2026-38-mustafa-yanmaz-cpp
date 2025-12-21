@@ -856,6 +856,58 @@ TEST_F(RASPSecurityTest, StressTestMultipleCFICounters) {
 }
 
 // ============================================================================
+// LIBRARY INTEGRITY TESTS
+// ============================================================================
+
+TEST_F(RASPSecurityTest, VerifyLibraryIntegrityNullPath) {
+    int result = rasp_verify_library_integrity(nullptr);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+TEST_F(RASPSecurityTest, VerifyLibraryIntegrityValidPath) {
+#ifdef _WIN32
+    // Test with a known system library
+    int result = rasp_verify_library_integrity("C:\\Windows\\System32\\kernel32.dll");
+    EXPECT_TRUE(result == RASP_SUCCESS || result == RASP_ERROR_FILE_ACCESS);
+#else
+    int result = rasp_verify_library_integrity("/lib/x86_64-linux-gnu/libc.so.6");
+    EXPECT_TRUE(result == RASP_SUCCESS || result == RASP_ERROR_FILE_ACCESS);
+#endif
+}
+
+TEST_F(RASPSecurityTest, VerifyLibraryIntegrityInvalidPath) {
+    int result = rasp_verify_library_integrity("/nonexistent/library.dll");
+    EXPECT_EQ(result, RASP_ERROR_FILE_ACCESS);
+}
+
+// ============================================================================
+// TAMPERING MONITORING TESTS
+// ============================================================================
+
+TEST_F(RASPSecurityTest, MonitorTamperingWithCallback) {
+    static bool callback_invoked = false;
+    
+    auto callback = [](const TamperInfo* info) {
+        callback_invoked = true;
+    };
+    
+    int result = rasp_monitor_tampering(100, callback);
+    EXPECT_EQ(result, RASP_SUCCESS);
+}
+
+TEST_F(RASPSecurityTest, MonitorTamperingNullCallback) {
+    int result = rasp_monitor_tampering(100, nullptr);
+    EXPECT_EQ(result, RASP_SUCCESS);
+}
+
+TEST_F(RASPSecurityTest, MonitorTamperingZeroInterval) {
+    auto callback = [](const TamperInfo* info) {};
+    
+    int result = rasp_monitor_tampering(0, callback);
+    EXPECT_EQ(result, RASP_SUCCESS);
+}
+
+// ============================================================================
 // PERFORMANCE TESTS
 // ============================================================================
 
@@ -901,9 +953,5 @@ TEST_F(RASPSecurityTest, PerformanceCFIOperations) {
     rasp_shutdown();
 }
 
-// Run all tests
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
+// Note: main() is provided by gtest_main library
 

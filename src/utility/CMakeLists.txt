@@ -40,6 +40,7 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/header/commonTypes.h
               ${CMAKE_CURRENT_SOURCE_DIR}/header/assetProtection.h
               ${CMAKE_CURRENT_SOURCE_DIR}/header/raspSecurity.h
               ${CMAKE_CURRENT_SOURCE_DIR}/header/codeObfuscation.h
+              ${CMAKE_CURRENT_SOURCE_DIR}/header/securityTest.h
         DESTINATION include)
 
 # Export the crypto target so other modules can use it

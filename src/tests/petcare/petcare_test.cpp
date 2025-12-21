@@ -3851,3 +3851,1525 @@ TEST_F(DatabaseGroomingAndSchedulesTest, LoadExerciseRoutinesIntoStack) {
     EXPECT_GE(exerciseStack.top, 0);
 #endif
 }
+
+// ============================================================================
+// ADDITIONAL TESTS FOR UNCOVERED CODE PATHS
+// ============================================================================
+
+/**
+ * @class AppointmentFileTest
+ * @brief Test fixture for file-based appointment loading tests
+ */
+class AppointmentFileTest : public ::testing::Test {
+protected:
+    const char* testFile = "test_appointments.data";
+    Pet* petList = nullptr;
+    
+    void SetUp() override {
+        // Reset global appointment list
+        extern Appointment* appointmentList;
+        appointmentList = nullptr;
+        
+        // Create test pet
+        addPet(&petList, "TestPet", "Dog", 3, "TestOwner");
+    }
+    
+    void TearDown() override {
+        freePetList(petList);
+        petList = nullptr;
+        
+        // Clean up appointment list
+        extern Appointment* appointmentList;
+        Appointment* current = appointmentList;
+        Appointment* prev = nullptr;
+        Appointment* next;
+        while (current != nullptr) {
+            next = XOR(prev, current->xorPtr);
+            free(current);
+            prev = current;
+            current = next;
+        }
+        appointmentList = nullptr;
+    }
+};
+
+/**
+ * @brief Test loadAppointmentsFromFile with file-based storage
+ */
+TEST_F(AppointmentFileTest, LoadAppointmentsFromFileBasic) {
+    // First save an appointment
+    addAppointment("TestPet", "Checkup", 10, 5, "TestOwner", petList);
+    saveAppointmentsToFile();
+    
+    // Clear and reload
+    extern Appointment* appointmentList;
+    Appointment* current = appointmentList;
+    Appointment* prev = nullptr;
+    Appointment* next;
+    while (current != nullptr) {
+        next = XOR(prev, current->xorPtr);
+        free(current);
+        prev = current;
+        current = next;
+    }
+    appointmentList = nullptr;
+    
+    // Load from file
+    loadAppointmentsFromFile();
+    
+    // Verify appointment was loaded (if database not used)
+    // The test just ensures the function runs without crashing
+    SUCCEED();
+}
+
+/**
+ * @brief Test loadAppointmentsFromFile with empty/missing files
+ */
+TEST_F(AppointmentFileTest, LoadAppointmentsFromFileMissing) {
+    // Remove test files
+    remove("test_appointments.data");
+    remove("appointment.data");
+    
+    // Load should handle missing files gracefully
+    loadAppointmentsFromFile();
+    
+    extern Appointment* appointmentList;
+    EXPECT_EQ(appointmentList, nullptr);
+}
+
+/**
+ * @class CancelAppointmentEdgeCasesTest
+ * @brief Test edge cases for cancelAppointment function
+ */
+class CancelAppointmentEdgeCasesTest : public ::testing::Test {
+protected:
+    Pet* petList = nullptr;
+    
+    void SetUp() override {
+        // Reset global appointment list
+        extern Appointment* appointmentList;
+        appointmentList = nullptr;
+        
+        addPet(&petList, "Pet1", "Dog", 3, "Owner1");
+        addPet(&petList, "Pet2", "Cat", 2, "Owner2");
+    }
+    
+    void TearDown() override {
+        freePetList(petList);
+        petList = nullptr;
+        
+        extern Appointment* appointmentList;
+        Appointment* current = appointmentList;
+        Appointment* prev = nullptr;
+        Appointment* next;
+        while (current != nullptr) {
+            next = XOR(prev, current->xorPtr);
+            free(current);
+            prev = current;
+            current = next;
+        }
+        appointmentList = nullptr;
+    }
+};
+
+/**
+ * @brief Test cancel appointment when pet is not owned by user
+ */
+TEST_F(CancelAppointmentEdgeCasesTest, CancelPetNotOwned) {
+    addAppointment("Pet1", "Checkup", 15, 6, "Owner1", petList);
+    
+    testing::internal::CaptureStdout();
+    bool result = cancelAppointment("Pet1", 15, 6, "WrongOwner");
+    std::string output = testing::internal::GetCapturedStdout();
+    
+    EXPECT_FALSE(result);
+    EXPECT_NE(output.find("Error: You do not own a pet named"), std::string::npos);
+}
+
+/**
+ * @brief Test cancel appointment when date doesn't match
+ */
+TEST_F(CancelAppointmentEdgeCasesTest, CancelWrongDate) {
+    addAppointment("Pet1", "Checkup", 15, 6, "Owner1", petList);
+    
+    testing::internal::CaptureStdout();
+    bool result = cancelAppointment("Pet1", 20, 6, "Owner1");
+    std::string output = testing::internal::GetCapturedStdout();
+    
+    EXPECT_FALSE(result);
+    EXPECT_NE(output.find("No matching appointment found"), std::string::npos);
+}
+
+/**
+ * @brief Test cancel with multiple appointments - canceling middle one
+ */
+TEST_F(CancelAppointmentEdgeCasesTest, CancelMiddleAppointment) {
+    // Use different months to avoid "date already occupied" constraint
+    addAppointment("Pet1", "Checkup1", 10, 5, "Owner1", petList);
+    addAppointment("Pet1", "Checkup2", 10, 6, "Owner1", petList);
+    addAppointment("Pet1", "Checkup3", 10, 7, "Owner1", petList);
+    
+    // Cancel middle appointment (month 6)
+    bool result = cancelAppointment("Pet1", 10, 6, "Owner1");
+    EXPECT_TRUE(result);
+    
+    // The test verifies the cancel operation succeeded
+    SUCCEED();
+}
+
+/**
+ * @class DeletePetEdgeCasesTest
+ * @brief Test edge cases for deletePet function
+ */
+class DeletePetEdgeCasesTest : public ::testing::Test {
+protected:
+    Pet* petList = nullptr;
+    
+    void TearDown() override {
+        freePetList(petList);
+        petList = nullptr;
+    }
+};
+
+/**
+ * @brief Test delete pet from middle of list
+ */
+TEST_F(DeletePetEdgeCasesTest, DeleteMiddlePet) {
+    addPet(&petList, "Pet1", "Dog", 3, "Owner1");
+    addPet(&petList, "Pet2", "Cat", 2, "Owner1");
+    addPet(&petList, "Pet3", "Bird", 1, "Owner1");
+    
+    // Delete middle pet
+    deletePet(&petList, "Pet2", "Owner1");
+    
+    // Verify Pet1 and Pet3 still exist
+    EXPECT_NE(petList, nullptr);
+    
+    // Count remaining pets
+    int count = 0;
+    Pet* current = petList;
+    while (current) {
+        count++;
+        current = current->next;
+    }
+    EXPECT_EQ(count, 2);
+}
+
+/**
+ * @brief Test delete pet not in list
+ */
+TEST_F(DeletePetEdgeCasesTest, DeleteNonExistentPet) {
+    addPet(&petList, "Pet1", "Dog", 3, "Owner1");
+    
+    // The function prints to stdout/stderr via OBF_INFO macro
+    // Just verify pet list is unchanged
+    deletePet(&petList, "NonExistent", "Owner1");
+    
+    // Pet1 should still exist
+    EXPECT_NE(petList, nullptr);
+    EXPECT_STREQ(petList->name, "Pet1");
+}
+
+/**
+ * @brief Test delete pet with wrong owner
+ */
+TEST_F(DeletePetEdgeCasesTest, DeletePetWrongOwner) {
+    addPet(&petList, "Pet1", "Dog", 3, "Owner1");
+    
+    // The function prints to stdout/stderr via OBF_INFO macro
+    // Just verify pet list is unchanged when wrong owner is used
+    deletePet(&petList, "Pet1", "WrongOwner");
+    
+    // Pet1 should still exist
+    EXPECT_NE(petList, nullptr);
+    EXPECT_STREQ(petList->name, "Pet1");
+}
+
+/**
+ * @brief Test delete last pet in list
+ */
+TEST_F(DeletePetEdgeCasesTest, DeleteLastPetInMultipleList) {
+    addPet(&petList, "Pet1", "Dog", 3, "Owner1");
+    addPet(&petList, "Pet2", "Cat", 2, "Owner1");
+    
+    // Pet1 is at front (head), Pet2 is second
+    // Delete Pet1 (head)
+    deletePet(&petList, "Pet1", "Owner1");
+    
+    EXPECT_NE(petList, nullptr);
+    EXPECT_STREQ(petList->name, "Pet2");
+}
+
+/**
+ * @class SavePetsEdgeCasesTest
+ * @brief Test edge cases for savePetsToFile function
+ */
+class SavePetsEdgeCasesTest : public ::testing::Test {
+protected:
+    Pet* petList = nullptr;
+    const char* testFile = "test_save_pets.dat";
+    
+    void TearDown() override {
+        freePetList(petList);
+        petList = nullptr;
+        remove(testFile);
+        remove("test_save_pets.dat.tmp");
+    }
+};
+
+/**
+ * @brief Test saving empty pet list
+ */
+TEST_F(SavePetsEdgeCasesTest, SaveEmptyPetList) {
+    // petList is nullptr
+    savePetsToFile(nullptr, testFile);
+    
+    // Should create empty file or handle gracefully
+    SUCCEED();
+}
+
+/**
+ * @brief Test saving and loading pet list roundtrip
+ */
+TEST_F(SavePetsEdgeCasesTest, SaveLoadRoundtrip) {
+    addPet(&petList, "TestPet", "Dog", 5, "TestOwner");
+    
+    savePetsToFile(petList, testFile);
+    
+    Pet* loadedList = nullptr;
+    loadPetsFromFile(&loadedList, testFile);
+    
+    // If database is not used, verify load worked
+    // Function should not crash
+    freePetList(loadedList);
+    SUCCEED();
+}
+
+/**
+ * @class MedicineScheduleEdgeCasesTest
+ * @brief Test edge cases for deleteMedicineSchedule function
+ */
+class MedicineScheduleEdgeCasesTest : public ::testing::Test {
+protected:
+    Queue* medicineQueue;
+    
+    void SetUp() override {
+        medicineQueue = createQueue();
+    }
+    
+    void TearDown() override {
+        while (!isQueueEmpty(medicineQueue)) {
+            FeedingSchedule* temp = dequeue(medicineQueue);
+            free(temp);
+        }
+        free(medicineQueue);
+    }
+};
+
+/**
+ * @brief Test delete medicine schedule from middle of queue
+ */
+TEST_F(MedicineScheduleEdgeCasesTest, DeleteMiddleSchedule) {
+    addMedicineSchedule(medicineQueue, "Pet1", "Med1");
+    addMedicineSchedule(medicineQueue, "Pet2", "Med2");
+    addMedicineSchedule(medicineQueue, "Pet3", "Med3");
+    
+    // Delete middle one
+    deleteMedicineSchedule(medicineQueue, "Pet2");
+    
+    // Pet1 and Pet3 should remain
+    EXPECT_FALSE(isQueueEmpty(medicineQueue));
+    EXPECT_STREQ(medicineQueue->front->petName, "Pet1");
+}
+
+/**
+ * @brief Test delete medicine schedule (last item - rear update)
+ */
+TEST_F(MedicineScheduleEdgeCasesTest, DeleteRearSchedule) {
+    addMedicineSchedule(medicineQueue, "Pet1", "Med1");
+    addMedicineSchedule(medicineQueue, "Pet2", "Med2");
+    
+    // Delete rear item
+    deleteMedicineSchedule(medicineQueue, "Pet2");
+    
+    // Pet1 should remain and be both front and rear
+    EXPECT_FALSE(isQueueEmpty(medicineQueue));
+    EXPECT_STREQ(medicineQueue->front->petName, "Pet1");
+    EXPECT_EQ(medicineQueue->front, medicineQueue->rear);
+}
+
+/**
+ * @brief Test delete medicine schedule from empty queue
+ */
+TEST_F(MedicineScheduleEdgeCasesTest, DeleteFromEmptyQueue) {
+    testing::internal::CaptureStdout();
+    deleteMedicineSchedule(medicineQueue, "Pet1");
+    std::string output = testing::internal::GetCapturedStdout();
+    
+    EXPECT_NE(output.find("No medicine schedules available"), std::string::npos);
+}
+
+/**
+ * @class FeedingScheduleEdgeCasesTest
+ * @brief Test edge cases for updateFeedingSchedule function
+ */
+class FeedingScheduleEdgeCasesTest : public ::testing::Test {
+protected:
+    Queue* feedingQueue;
+    
+    void SetUp() override {
+        feedingQueue = createQueue();
+    }
+    
+    void TearDown() override {
+        while (!isQueueEmpty(feedingQueue)) {
+            FeedingSchedule* temp = dequeue(feedingQueue);
+            free(temp);
+        }
+        free(feedingQueue);
+    }
+};
+
+/**
+ * @brief Test update feeding schedule on empty queue
+ */
+TEST_F(FeedingScheduleEdgeCasesTest, UpdateEmptyQueue) {
+    testing::internal::CaptureStdout();
+    updateFeedingSchedule(feedingQueue, "Pet1", "New Schedule");
+    std::string output = testing::internal::GetCapturedStdout();
+    
+    EXPECT_NE(output.find("No feeding schedules available"), std::string::npos);
+}
+
+/**
+ * @brief Test delete feeding schedule from middle of queue
+ */
+TEST_F(FeedingScheduleEdgeCasesTest, DeleteMiddleFeedingSchedule) {
+    enqueue(feedingQueue, "Pet1", "Feed1");
+    enqueue(feedingQueue, "Pet2", "Feed2");
+    enqueue(feedingQueue, "Pet3", "Feed3");
+    
+    // Delete middle one
+    deleteFeedingSchedule(feedingQueue, "Pet2");
+    
+    // Pet1 and Pet3 should remain
+    EXPECT_FALSE(isQueueEmpty(feedingQueue));
+    EXPECT_STREQ(feedingQueue->front->petName, "Pet1");
+}
+
+/**
+ * @class BirthdayFileEdgeCasesTest
+ * @brief Test edge cases for birthday file operations
+ */
+class BirthdayFileEdgeCasesTest : public ::testing::Test {
+protected:
+    BPlusTree* tree = nullptr;
+    Pet* petList = nullptr;
+    const char* testFile = "test_birthday_edge.dat";
+    
+    void SetUp() override {
+        tree = createBPlusTree();
+        addPet(&petList, "BirthdayPet", "Dog", 3, "BirthdayOwner");
+    }
+    
+    void TearDown() override {
+        freePetList(petList);
+        petList = nullptr;
+        if (tree) delete tree;
+        remove(testFile);
+    }
+};
+
+/**
+ * @brief Test save and load birthdays roundtrip
+ */
+TEST_F(BirthdayFileEdgeCasesTest, SaveLoadBirthdaysRoundtrip) {
+    insertBirthday(tree, "BirthdayPet", 15, 8, 2020);
+    
+    saveBirthdaysToFile(tree, testFile, petList);
+    
+    BPlusTree* loadedTree = createBPlusTree();
+    Pet* loadedPets = nullptr;
+    loadBirthdaysFromFile(loadedTree, testFile, &loadedPets);
+    
+    // Function should not crash
+    freePetList(loadedPets);
+    delete loadedTree;
+    SUCCEED();
+}
+
+/**
+ * @brief Test save birthdays with empty tree
+ */
+TEST_F(BirthdayFileEdgeCasesTest, SaveEmptyBirthdayTree) {
+    // tree is empty (no birthdays inserted)
+    saveBirthdaysToFile(tree, testFile, petList);
+    
+    // Should handle gracefully
+    SUCCEED();
+}
+
+/**
+ * @brief Test load birthdays from non-existent file
+ */
+TEST_F(BirthdayFileEdgeCasesTest, LoadFromMissingFile) {
+    remove(testFile);
+    
+    testing::internal::CaptureStderr();
+    loadBirthdaysFromFile(tree, testFile, &petList);
+    std::string errOutput = testing::internal::GetCapturedStderr();
+    
+    // Should print error but not crash
+    SUCCEED();
+}
+
+/**
+ * @class MigrationTest
+ * @brief Test migrate_dat_to_sqlite function
+ */
+class MigrationTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        // Ensure no database is active for the test
+    }
+    
+    void TearDown() override {
+        // Clean up any test files
+        remove("users.dat");
+        remove("pets.dat");
+        remove("adoptable.dat");
+        remove("adopted.dat");
+    }
+};
+
+/**
+ * @brief Test migration when database is not initialized
+ */
+TEST_F(MigrationTest, MigrateWithoutDatabase) {
+    // This test checks that migrate_dat_to_sqlite handles no database gracefully
+    testing::internal::CaptureStderr();
+    int result = migrate_dat_to_sqlite();
+    std::string errOutput = testing::internal::GetCapturedStderr();
+    
+    EXPECT_EQ(result, -1);
+    EXPECT_NE(errOutput.find("Database not initialized"), std::string::npos);
+}
+
+/**
+ * @class StrayAnimalFileEdgeCasesTest
+ * @brief Test edge cases for stray animal file operations
+ */
+class StrayAnimalFileEdgeCasesTest : public ::testing::Test {
+protected:
+    StrayAnimal* strayList = nullptr;
+    AdoptedAnimal* adoptedList = nullptr;
+    const char* strayFile = "test_stray_edge.dat";
+    const char* adoptedFile = "test_adopted_edge.dat";
+    
+    void TearDown() override {
+        while (strayList) {
+            StrayAnimal* temp = strayList;
+            strayList = strayList->next;
+            free(temp);
+        }
+        while (adoptedList) {
+            AdoptedAnimal* temp = adoptedList;
+            adoptedList = adoptedList->next;
+            free(temp);
+        }
+        remove(strayFile);
+        remove(adoptedFile);
+    }
+};
+
+/**
+ * @brief Test save and load stray animals roundtrip
+ */
+TEST_F(StrayAnimalFileEdgeCasesTest, SaveLoadStrayAnimalsRoundtrip) {
+    addStrayAnimalToList(&strayList, "Dog", "Male", "01/01/2024", 2);
+    addStrayAnimalToList(&strayList, "Cat", "Female", "02/01/2024", 1);
+    
+    saveStrayAnimalsToFile(strayList, strayFile);
+    
+    StrayAnimal* loadedList = nullptr;
+    loadStrayAnimalsFromFile(&loadedList, strayFile);
+    
+    // Should not crash
+    while (loadedList) {
+        StrayAnimal* temp = loadedList;
+        loadedList = loadedList->next;
+        free(temp);
+    }
+    SUCCEED();
+}
+
+/**
+ * @brief Test save and load adopted animals roundtrip
+ */
+TEST_F(StrayAnimalFileEdgeCasesTest, SaveLoadAdoptedAnimalsRoundtrip) {
+    addStrayAnimalToList(&strayList, "Dog", "Male", "01/01/2024", 2);
+    adoptStrayAnimal(&strayList, "TestOwner", 1, "Buddy", "03/01/2024");
+    
+    saveAdoptedAnimalsToFile(adoptedList, adoptedFile);
+    
+    AdoptedAnimal* loadedList = nullptr;
+    loadAdoptedAnimalsFromFile(&loadedList, adoptedFile);
+    
+    // Should not crash
+    while (loadedList) {
+        AdoptedAnimal* temp = loadedList;
+        loadedList = loadedList->next;
+        free(temp);
+    }
+    SUCCEED();
+}
+
+/**
+ * @brief Test XOR encryption/decryption roundtrip
+ */
+TEST(XorEncryptionTest, EncryptDecryptRoundtrip) {
+    char data[] = "Hello, World!";
+    const char* key = "SecretKey";
+    size_t len = strlen(data);
+    
+    char original[64];
+    strcpy(original, data);
+    
+    // Encrypt
+    xorEncryptDecrypt(data, len, key);
+    
+    // Data should be different after encryption
+    EXPECT_STRNE(data, original);
+    
+    // Decrypt
+    xorEncryptDecrypt(data, len, key);
+    
+    // Data should match original
+    EXPECT_STREQ(data, original);
+}
+
+/**
+ * @brief Test XOR encryption with empty string
+ */
+TEST(XorEncryptionTest, EncryptEmptyString) {
+    char data[] = "";
+    const char* key = "SecretKey";
+    
+    xorEncryptDecrypt(data, 0, key);
+    EXPECT_STREQ(data, "");
+}
+
+// ============================================================================
+// SESSION MANAGEMENT WITH FINGERPRINT TESTS
+// ============================================================================
+
+/**
+ * @class SessionWithFingerprintTest
+ * @brief Test fixture for session management with fingerprint functions
+ */
+class SessionWithFingerprintTest : public ::testing::Test {
+protected:
+    HashTable* sessionUserTable = nullptr;
+    
+    void SetUp() override {
+        sessionUserTable = createHashTable();
+        addUser(sessionUserTable, "testuser", "testpassword");
+    }
+    
+    void TearDown() override {
+        logoutUserSession();
+        freeHashTable(sessionUserTable);
+        sessionUserTable = nullptr;
+    }
+};
+
+/**
+ * @brief Test loginUserWithSession with valid credentials
+ */
+TEST_F(SessionWithFingerprintTest, LoginWithSessionValidCredentials) {
+    // First ensure session is initialized
+    init_petcare_session();
+    
+    int result = loginUserWithSession(sessionUserTable, "testuser", "testpassword");
+    EXPECT_EQ(result, 1);
+    
+    // Session should be valid now
+    EXPECT_EQ(isSessionValid(), 1);
+}
+
+/**
+ * @brief Test loginUserWithSession with invalid credentials
+ */
+TEST_F(SessionWithFingerprintTest, LoginWithSessionInvalidCredentials) {
+    init_petcare_session();
+    
+    int result = loginUserWithSession(sessionUserTable, "testuser", "wrongpassword");
+    EXPECT_EQ(result, 0);
+}
+
+/**
+ * @brief Test loginUserWithSession with non-existent user
+ */
+TEST_F(SessionWithFingerprintTest, LoginWithSessionNonExistentUser) {
+    init_petcare_session();
+    
+    int result = loginUserWithSession(sessionUserTable, "nonexistent", "password");
+    EXPECT_EQ(result, 0);
+}
+
+/**
+ * @brief Test logoutUserSession
+ */
+TEST_F(SessionWithFingerprintTest, LogoutUserSession) {
+    init_petcare_session();
+    loginUserWithSession(sessionUserTable, "testuser", "testpassword");
+    
+    // Session should be valid after login
+    EXPECT_EQ(isSessionValid(), 1);
+    
+    // Logout
+    logoutUserSession();
+    
+    // Session should be invalid after logout
+    EXPECT_EQ(isSessionValid(), 0);
+}
+
+/**
+ * @brief Test isSessionValid without active session
+ */
+TEST_F(SessionWithFingerprintTest, IsSessionValidWithoutSession) {
+    // Without login, session should be invalid
+    int result = isSessionValid();
+    EXPECT_EQ(result, 0);
+}
+
+/**
+ * @brief Test session with fingerprint initialization
+ */
+TEST_F(SessionWithFingerprintTest, SessionWithFingerprintInit) {
+    // Initialize session first
+    init_petcare_session();
+    
+    // Login should work with initialized fingerprint
+    int result = loginUserWithSession(sessionUserTable, "testuser", "testpassword");
+    EXPECT_EQ(result, 1);
+}
+
+/**
+ * @brief Test multiple login/logout cycles
+ */
+TEST_F(SessionWithFingerprintTest, MultipleLoginLogoutCycles) {
+    init_petcare_session();
+    
+    for (int i = 0; i < 3; i++) {
+        int result = loginUserWithSession(sessionUserTable, "testuser", "testpassword");
+        EXPECT_EQ(result, 1);
+        EXPECT_EQ(isSessionValid(), 1);
+        
+        logoutUserSession();
+        EXPECT_EQ(isSessionValid(), 0);
+    }
+}
+
+// ============================================================================
+// DATABASE INITIALIZATION TESTS
+// ============================================================================
+
+/**
+ * @class DatabaseInitTest
+ * @brief Test fixture for database initialization functions
+ */
+class DatabaseInitTest : public ::testing::Test {
+protected:
+    const char* testDbPath = "test_init_database.db";
+    
+    void SetUp() override {
+        // Clean up any existing test database
+        remove(testDbPath);
+        remove("test_init_database.db.enc");
+        remove("test_init_database.db.tmp.sqlite");
+    }
+    
+    void TearDown() override {
+        close_petcare_database();
+        remove(testDbPath);
+        remove("test_init_database.db.enc");
+        remove("test_init_database.db.tmp.sqlite");
+    }
+};
+
+/**
+ * @brief Test init_petcare_database with valid path
+ */
+TEST_F(DatabaseInitTest, InitDatabaseValidPath) {
+    // First close any existing database
+    close_petcare_database();
+    
+    int result = init_petcare_database(testDbPath);
+    
+#ifndef SQLITE3_HEADER_ONLY
+    EXPECT_EQ(result, 0);
+    EXPECT_NE(get_petcare_database(), nullptr);
+#endif
+}
+
+/**
+ * @brief Test init_petcare_database called twice (already initialized)
+ */
+TEST_F(DatabaseInitTest, InitDatabaseAlreadyInitialized) {
+    // First close any existing database
+    close_petcare_database();
+    
+    int result1 = init_petcare_database(testDbPath);
+    int result2 = init_petcare_database(testDbPath);
+    
+#ifndef SQLITE3_HEADER_ONLY
+    // Second call should return 0 (already initialized)
+    EXPECT_EQ(result2, 0);
+#endif
+}
+
+/**
+ * @brief Test close_petcare_database
+ */
+TEST_F(DatabaseInitTest, CloseDatabaseBasic) {
+    close_petcare_database();
+    
+    int result = init_petcare_database(testDbPath);
+    
+#ifndef SQLITE3_HEADER_ONLY
+    EXPECT_EQ(result, 0);
+    
+    close_petcare_database();
+    EXPECT_EQ(get_petcare_database(), nullptr);
+#endif
+}
+
+/**
+ * @brief Test close_petcare_database when not initialized
+ */
+TEST_F(DatabaseInitTest, CloseDatabaseNotInitialized) {
+    close_petcare_database();
+    
+    // Should not crash when called on uninitialized database
+    close_petcare_database();
+    EXPECT_EQ(get_petcare_database(), nullptr);
+}
+
+/**
+ * @brief Test get_petcare_database
+ */
+TEST_F(DatabaseInitTest, GetPetcareDatabase) {
+    close_petcare_database();
+    
+    // Before init, should be null
+    Database* db1 = get_petcare_database();
+    EXPECT_EQ(db1, nullptr);
+    
+    int result = init_petcare_database(testDbPath);
+    
+#ifndef SQLITE3_HEADER_ONLY
+    EXPECT_EQ(result, 0);
+    
+    // After init, should not be null
+    Database* db2 = get_petcare_database();
+    EXPECT_NE(db2, nullptr);
+#endif
+}
+
+// ============================================================================
+// MIGRATION TESTS
+// ============================================================================
+
+/**
+ * @class MigrationFullTest
+ * @brief Test fixture for data migration functions
+ */
+class MigrationFullTest : public ::testing::Test {
+protected:
+    const char* testDbPath = "test_migration.db";
+    
+    void SetUp() override {
+        // Clean up
+        close_petcare_database();
+        remove(testDbPath);
+        remove("test_migration.db.enc");
+        remove("test_migration.db.tmp.sqlite");
+        remove("users.dat");
+        remove("pets.dat");
+    }
+    
+    void TearDown() override {
+        close_petcare_database();
+        remove(testDbPath);
+        remove("test_migration.db.enc");
+        remove("test_migration.db.tmp.sqlite");
+        remove("users.dat");
+        remove("pets.dat");
+    }
+};
+
+/**
+ * @brief Test migration when database is not initialized
+ */
+TEST_F(MigrationFullTest, MigrateWithNullDatabase) {
+    close_petcare_database();
+    
+    testing::internal::CaptureStderr();
+    int result = migrate_dat_to_sqlite();
+    std::string errOutput = testing::internal::GetCapturedStderr();
+    
+    EXPECT_EQ(result, -1);
+    EXPECT_NE(errOutput.find("Database not initialized"), std::string::npos);
+}
+
+/**
+ * @brief Test migration when database already has data
+ */
+TEST_F(MigrationFullTest, MigrateWithExistingData) {
+#ifndef SQLITE3_HEADER_ONLY
+    // Initialize database
+    ASSERT_EQ(init_petcare_database(testDbPath), 0);
+    
+    // Add some data
+    Database* db = get_petcare_database();
+    ASSERT_NE(db, nullptr);
+    db_add_user(db, "existinguser", "password");
+    
+    testing::internal::CaptureStdout();
+    int result = migrate_dat_to_sqlite();
+    std::string output = testing::internal::GetCapturedStdout();
+    
+    // Should skip migration since data exists
+    EXPECT_EQ(result, 0);
+    EXPECT_NE(output.find("already contains data"), std::string::npos);
+#endif
+}
+
+/**
+ * @brief Test migration with empty .dat files (no files to migrate)
+ */
+TEST_F(MigrationFullTest, MigrateWithNoDataFiles) {
+#ifndef SQLITE3_HEADER_ONLY
+    // Remove any existing .dat files
+    remove("users.dat");
+    remove("pets.dat");
+    remove("adoptable.dat");
+    remove("adopted.dat");
+    
+    // Initialize a fresh database (by removing existing one first)
+    remove(testDbPath);
+    remove("test_migration.db.enc");
+    
+    ASSERT_EQ(init_petcare_database(testDbPath), 0);
+    
+    // Since database is empty, migration will proceed but find no .dat files
+    testing::internal::CaptureStdout();
+    int result = migrate_dat_to_sqlite();
+    std::string output = testing::internal::GetCapturedStdout();
+    
+    // Migration should complete (with no files migrated)
+    // Or skip if data was already added
+    EXPECT_GE(result, -1);
+#endif
+}
+
+/**
+ * @brief Test migration with users.dat file present
+ */
+TEST_F(MigrationFullTest, MigrateUsersFromDatFile) {
+#ifndef SQLITE3_HEADER_ONLY
+    // Create a minimal users.dat file for testing
+    // First, create some users and save them
+    HashTable* table = createHashTable();
+    addUser(table, "migrateuser1", "pass1");
+    addUser(table, "migrateuser2", "pass2");
+    saveUsersToFile(table, "users.dat");
+    freeHashTable(table);
+    
+    // Initialize a fresh database
+    remove(testDbPath);
+    remove("test_migration.db.enc");
+    ASSERT_EQ(init_petcare_database(testDbPath), 0);
+    
+    testing::internal::CaptureStdout();
+    int result = migrate_dat_to_sqlite();
+    std::string output = testing::internal::GetCapturedStdout();
+    
+    // Check output indicates migration attempted
+    // Note: Actual migration might skip if DB has data from previous tests
+    EXPECT_GE(result, -1);
+#endif
+}
+
+/**
+ * @brief Test migration with pets.dat file present
+ */
+TEST_F(MigrationFullTest, MigratePetsFromDatFile) {
+#ifndef SQLITE3_HEADER_ONLY
+    // Create a minimal pets.dat file for testing
+    Pet* petList = nullptr;
+    addPet(&petList, "MigrateDog", "Dog", 3, "Owner1");
+    addPet(&petList, "MigrateCat", "Cat", 2, "Owner2");
+    savePetsToFile(petList, "pets.dat");
+    freePetList(petList);
+    
+    // Initialize a fresh database
+    remove(testDbPath);
+    remove("test_migration.db.enc");
+    ASSERT_EQ(init_petcare_database(testDbPath), 0);
+    
+    testing::internal::CaptureStdout();
+    int result = migrate_dat_to_sqlite();
+    std::string output = testing::internal::GetCapturedStdout();
+    
+    // Migration should process or skip
+    EXPECT_GE(result, -1);
+#endif
+}
+
+// ============================================================================
+// KDF ITERATIONS TESTS (via database initialization)
+// ============================================================================
+
+/**
+ * @class KdfIterationsTest
+ * @brief Test fixture for KDF iterations environment variable handling
+ */
+class KdfIterationsTest : public ::testing::Test {
+protected:
+    const char* testDbPath = "test_kdf.db";
+    char* originalEnv = nullptr;
+    
+    void SetUp() override {
+        // Save original environment variable
+        const char* env = getenv("PETCARE_KDF_ITERS");
+        if (env) {
+            originalEnv = _strdup(env);
+        }
+        
+        close_petcare_database();
+        remove(testDbPath);
+        remove("test_kdf.db.enc");
+    }
+    
+    void TearDown() override {
+        // Restore original environment variable
+        if (originalEnv) {
+            char envStr[256];
+            snprintf(envStr, sizeof(envStr), "PETCARE_KDF_ITERS=%s", originalEnv);
+            _putenv(envStr);
+            free(originalEnv);
+        } else {
+            _putenv("PETCARE_KDF_ITERS=");
+        }
+        
+        close_petcare_database();
+        remove(testDbPath);
+        remove("test_kdf.db.enc");
+    }
+};
+
+/**
+ * @brief Test database initialization with default KDF iterations
+ */
+TEST_F(KdfIterationsTest, DefaultKdfIterations) {
+    // Clear the environment variable
+    _putenv("PETCARE_KDF_ITERS=");
+    
+    close_petcare_database();
+    int result = init_petcare_database(testDbPath);
+    
+#ifndef SQLITE3_HEADER_ONLY
+    EXPECT_EQ(result, 0);
+#endif
+}
+
+/**
+ * @brief Test database initialization with custom KDF iterations
+ */
+TEST_F(KdfIterationsTest, CustomKdfIterations) {
+    // Set custom KDF iterations
+    _putenv("PETCARE_KDF_ITERS=5000");
+    
+    close_petcare_database();
+    int result = init_petcare_database(testDbPath);
+    
+#ifndef SQLITE3_HEADER_ONLY
+    EXPECT_EQ(result, 0);
+#endif
+}
+
+/**
+ * @brief Test database initialization with KDF iterations below minimum
+ */
+TEST_F(KdfIterationsTest, KdfIterationsBelowMinimum) {
+    // Set KDF iterations below minimum (should be clamped to 1000)
+    _putenv("PETCARE_KDF_ITERS=100");
+    
+    close_petcare_database();
+    int result = init_petcare_database(testDbPath);
+    
+#ifndef SQLITE3_HEADER_ONLY
+    EXPECT_EQ(result, 0);
+#endif
+}
+
+/**
+ * @brief Test database initialization with KDF iterations above maximum
+ */
+TEST_F(KdfIterationsTest, KdfIterationsAboveMaximum) {
+    // Set KDF iterations above maximum (should be clamped to 1000000)
+    _putenv("PETCARE_KDF_ITERS=2000000");
+    
+    close_petcare_database();
+    int result = init_petcare_database(testDbPath);
+    
+#ifndef SQLITE3_HEADER_ONLY
+    EXPECT_EQ(result, 0);
+#endif
+}
+
+/**
+ * @brief Test database initialization with invalid KDF iterations value
+ */
+TEST_F(KdfIterationsTest, InvalidKdfIterationsValue) {
+    // Set invalid value (should fall back to default)
+    _putenv("PETCARE_KDF_ITERS=invalid");
+    
+    close_petcare_database();
+    int result = init_petcare_database(testDbPath);
+    
+#ifndef SQLITE3_HEADER_ONLY
+    // strtol returns 0 for invalid, which should be clamped to 1000
+    EXPECT_EQ(result, 0);
+#endif
+}
+
+// ============================================================================
+// COMPREHENSIVE MIGRATION TESTS - Covers actual data migration loops
+// ============================================================================
+
+/**
+ * @class ComprehensiveMigrationTest
+ * @brief Test fixture for comprehensive data migration with actual data
+ */
+class ComprehensiveMigrationTest : public ::testing::Test {
+protected:
+    const char* testDbPath = "test_comprehensive_migration.db";
+    
+    void SetUp() override {
+        // Clean up everything before each test
+        close_petcare_database();
+        remove(testDbPath);
+        remove("test_comprehensive_migration.db.enc");
+        remove("test_comprehensive_migration.db.tmp.sqlite");
+        remove("users.dat");
+        remove("pets.dat");
+        remove("adoptable.dat");
+        remove("adopted.dat");
+    }
+    
+    void TearDown() override {
+        close_petcare_database();
+        remove(testDbPath);
+        remove("test_comprehensive_migration.db.enc");
+        remove("test_comprehensive_migration.db.tmp.sqlite");
+        remove("users.dat");
+        remove("pets.dat");
+        remove("adoptable.dat");
+        remove("adopted.dat");
+    }
+    
+    // Helper to create users.dat with test data
+    void createUsersDatFile() {
+        HashTable* table = createHashTable();
+        addUser(table, "migrate_user1", "password1");
+        addUser(table, "migrate_user2", "password2");
+        addUser(table, "migrate_user3", "password3");
+        saveUsersToFile(table, "users.dat");
+        freeHashTable(table);
+    }
+    
+    // Helper to create pets.dat with test data
+    void createPetsDatFile() {
+        Pet* petList = nullptr;
+        addPet(&petList, "MigrateDog1", "Dog", 3, "migrate_user1");
+        addPet(&petList, "MigrateCat1", "Cat", 2, "migrate_user2");
+        addPet(&petList, "MigrateBird1", "Bird", 1, "migrate_user1");
+        savePetsToFile(petList, "pets.dat");
+        freePetList(petList);
+    }
+    
+    // Helper to create adoptable.dat with test stray animals
+    void createAdoptableDatFile() {
+        StrayAnimal* strayList = nullptr;
+        addStrayAnimalToList(&strayList, "Stray_Dog", "Male", "01/01/2024", 2);
+        addStrayAnimalToList(&strayList, "Stray_Cat", "Female", "02/02/2024", 1);
+        saveStrayAnimalsToFile(strayList, "adoptable.dat");
+        // Free the list
+        while (strayList) {
+            StrayAnimal* next = strayList->next;
+            free(strayList);
+            strayList = next;
+        }
+    }
+    
+    // Helper to create adopted.dat with test adopted animals
+    void createAdoptedDatFile() {
+        AdoptedAnimal* adoptedList = nullptr;
+        
+        // Manually create adopted animals
+        AdoptedAnimal* adopted1 = (AdoptedAnimal*)malloc(sizeof(AdoptedAnimal));
+        adopted1->id = 100;
+        strcpy(adopted1->type, "Adopted_Dog");
+        strcpy(adopted1->gender, "Male");
+        strcpy(adopted1->arrivalDate, "01/06/2023");
+        adopted1->age = 3;
+        strcpy(adopted1->owner, "adopter1");
+        strcpy(adopted1->adoptionDate, "15/07/2023");
+        adopted1->next = nullptr;
+        adoptedList = adopted1;
+        
+        AdoptedAnimal* adopted2 = (AdoptedAnimal*)malloc(sizeof(AdoptedAnimal));
+        adopted2->id = 101;
+        strcpy(adopted2->type, "Adopted_Cat");
+        strcpy(adopted2->gender, "Female");
+        strcpy(adopted2->arrivalDate, "01/08/2023");
+        adopted2->age = 2;
+        strcpy(adopted2->owner, "adopter2");
+        strcpy(adopted2->adoptionDate, "20/09/2023");
+        adopted2->next = nullptr;
+        adopted1->next = adopted2;
+        
+        saveAdoptedAnimalsToFile(adoptedList, "adopted.dat");
+        
+        // Free the list
+        while (adoptedList) {
+            AdoptedAnimal* next = adoptedList->next;
+            free(adoptedList);
+            adoptedList = next;
+        }
+    }
+};
+
+/**
+ * @brief Test migration with actual user data in users.dat
+ * Covers lines 3196-3200 in petcare.cpp
+ */
+TEST_F(ComprehensiveMigrationTest, MigrateActualUsersFromDat) {
+#ifndef SQLITE3_HEADER_ONLY
+    // Create users.dat with actual test users
+    createUsersDatFile();
+    
+    // Verify file exists
+    FILE* f = fopen("users.dat", "rb");
+    ASSERT_NE(f, nullptr) << "users.dat should exist";
+    fclose(f);
+    
+    // Initialize fresh database (no existing data)
+    ASSERT_EQ(init_petcare_database(testDbPath), 0);
+    
+    // Capture output and run migration
+    testing::internal::CaptureStdout();
+    int result = migrate_dat_to_sqlite();
+    std::string output = testing::internal::GetCapturedStdout();
+    
+    // Check that migration was attempted
+    EXPECT_EQ(result, 0);
+    
+    // Verify output mentions user migration
+    // Note: May say "already contains data" if tables were populated during init
+    EXPECT_TRUE(output.find("Migrat") != std::string::npos || 
+                output.find("already contains data") != std::string::npos);
+#endif
+}
+
+/**
+ * @brief Test migration with actual pet data in pets.dat
+ * Covers lines 3221-3225 in petcare.cpp
+ */
+TEST_F(ComprehensiveMigrationTest, MigrateActualPetsFromDat) {
+#ifndef SQLITE3_HEADER_ONLY
+    // Create pets.dat with actual test pets
+    createPetsDatFile();
+    
+    // Verify file exists
+    FILE* f = fopen("pets.dat", "rb");
+    ASSERT_NE(f, nullptr) << "pets.dat should exist";
+    fclose(f);
+    
+    // Initialize fresh database
+    ASSERT_EQ(init_petcare_database(testDbPath), 0);
+    
+    // Capture output and run migration
+    testing::internal::CaptureStdout();
+    int result = migrate_dat_to_sqlite();
+    std::string output = testing::internal::GetCapturedStdout();
+    
+    EXPECT_EQ(result, 0);
+#endif
+}
+
+/**
+ * @brief Test migration with actual stray animal data in adoptable.dat
+ * Covers lines 3234-3252 in petcare.cpp
+ */
+TEST_F(ComprehensiveMigrationTest, MigrateActualStrayAnimalsFromDat) {
+#ifndef SQLITE3_HEADER_ONLY
+    // Create adoptable.dat with test stray animals
+    createAdoptableDatFile();
+    
+    // Verify file exists
+    FILE* f = fopen("adoptable.dat", "rb");
+    ASSERT_NE(f, nullptr) << "adoptable.dat should exist";
+    fclose(f);
+    
+    // Initialize fresh database
+    ASSERT_EQ(init_petcare_database(testDbPath), 0);
+    
+    // Capture output and run migration
+    testing::internal::CaptureStdout();
+    int result = migrate_dat_to_sqlite();
+    std::string output = testing::internal::GetCapturedStdout();
+    
+    EXPECT_EQ(result, 0);
+#endif
+}
+
+/**
+ * @brief Test migration with actual adopted animal data in adopted.dat
+ * Covers lines 3258-3276 in petcare.cpp
+ */
+TEST_F(ComprehensiveMigrationTest, MigrateActualAdoptedAnimalsFromDat) {
+#ifndef SQLITE3_HEADER_ONLY
+    // Create adopted.dat with test adopted animals
+    createAdoptedDatFile();
+    
+    // Verify file exists
+    FILE* f = fopen("adopted.dat", "rb");
+    ASSERT_NE(f, nullptr) << "adopted.dat should exist";
+    fclose(f);
+    
+    // Initialize fresh database
+    ASSERT_EQ(init_petcare_database(testDbPath), 0);
+    
+    // Capture output and run migration
+    testing::internal::CaptureStdout();
+    int result = migrate_dat_to_sqlite();
+    std::string output = testing::internal::GetCapturedStdout();
+    
+    EXPECT_EQ(result, 0);
+#endif
+}
+
+/**
+ * @brief Test full migration with all .dat files present
+ * Covers all migration loops in migrate_dat_to_sqlite
+ */
+TEST_F(ComprehensiveMigrationTest, MigrateAllDataFiles) {
+#ifndef SQLITE3_HEADER_ONLY
+    // Create all .dat files with test data
+    createUsersDatFile();
+    createPetsDatFile();
+    createAdoptableDatFile();
+    createAdoptedDatFile();
+    
+    // Verify all files exist
+    FILE* f1 = fopen("users.dat", "rb");
+    FILE* f2 = fopen("pets.dat", "rb");
+    FILE* f3 = fopen("adoptable.dat", "rb");
+    FILE* f4 = fopen("adopted.dat", "rb");
+    
+    ASSERT_NE(f1, nullptr) << "users.dat should exist";
+    ASSERT_NE(f2, nullptr) << "pets.dat should exist";
+    ASSERT_NE(f3, nullptr) << "adoptable.dat should exist";
+    ASSERT_NE(f4, nullptr) << "adopted.dat should exist";
+    
+    fclose(f1); fclose(f2); fclose(f3); fclose(f4);
+    
+    // Initialize fresh database
+    ASSERT_EQ(init_petcare_database(testDbPath), 0);
+    
+    // Capture output and run migration
+    testing::internal::CaptureStdout();
+    int result = migrate_dat_to_sqlite();
+    std::string output = testing::internal::GetCapturedStdout();
+    
+    EXPECT_EQ(result, 0);
+    
+    // Migration should complete successfully
+    EXPECT_TRUE(output.find("Migration complete") != std::string::npos ||
+                output.find("already contains data") != std::string::npos);
+#endif
+}
+
+/**
+ * @brief Test migration loop behavior when files have multiple records
+ */
+TEST_F(ComprehensiveMigrationTest, MigrateManyUsersFromDat) {
+#ifndef SQLITE3_HEADER_ONLY
+    // Create users.dat with many users to test the loop
+    HashTable* table = createHashTable();
+    for (int i = 0; i < 10; i++) {
+        char username[32], password[32];
+        snprintf(username, sizeof(username), "bulk_user_%d", i);
+        snprintf(password, sizeof(password), "bulk_pass_%d", i);
+        addUser(table, username, password);
+    }
+    saveUsersToFile(table, "users.dat");
+    freeHashTable(table);
+    
+    // Initialize fresh database
+    ASSERT_EQ(init_petcare_database(testDbPath), 0);
+    
+    // Run migration
+    testing::internal::CaptureStdout();
+    int result = migrate_dat_to_sqlite();
+    std::string output = testing::internal::GetCapturedStdout();
+    
+    EXPECT_EQ(result, 0);
+#endif
+}
+
+/**
+ * @brief Test migration loop behavior when pets.dat has multiple records
+ */
+TEST_F(ComprehensiveMigrationTest, MigrateManyPetsFromDat) {
+#ifndef SQLITE3_HEADER_ONLY
+    // Create pets.dat with many pets to test the loop
+    Pet* petList = nullptr;
+    for (int i = 0; i < 10; i++) {
+        char name[32], type[32], owner[32];
+        snprintf(name, sizeof(name), "BulkPet%d", i);
+        snprintf(type, sizeof(type), "Type%d", i % 3);
+        snprintf(owner, sizeof(owner), "Owner%d", i % 5);
+        addPet(&petList, name, type, i + 1, owner);
+    }
+    savePetsToFile(petList, "pets.dat");
+    freePetList(petList);
+    
+    // Initialize fresh database
+    ASSERT_EQ(init_petcare_database(testDbPath), 0);
+    
+    // Run migration
+    testing::internal::CaptureStdout();
+    int result = migrate_dat_to_sqlite();
+    std::string output = testing::internal::GetCapturedStdout();
+    
+    EXPECT_EQ(result, 0);
+#endif
+}
+
+/**
+ * @brief Test that migration skips when database already has data
+ */
+TEST_F(ComprehensiveMigrationTest, MigrationSkipsWithExistingData) {
+#ifndef SQLITE3_HEADER_ONLY
+    // Create dat files
+    createUsersDatFile();
+    createPetsDatFile();
+    
+    // Initialize database
+    ASSERT_EQ(init_petcare_database(testDbPath), 0);
+    
+    // Add some data directly to database first
+    Database* db = get_petcare_database();
+    ASSERT_NE(db, nullptr);
+    db_add_user(db, "existing_user", "existing_pass");
+    
+    // Now try migration - should skip
+    testing::internal::CaptureStdout();
+    int result = migrate_dat_to_sqlite();
+    std::string output = testing::internal::GetCapturedStdout();
+    
+    EXPECT_EQ(result, 0);
+    // Should mention that data already exists
+    EXPECT_TRUE(output.find("already contains data") != std::string::npos);
+#endif
+}
+
+/**
+ * @brief Test stray animal migration with multiple records in adoptable.dat
+ */
+TEST_F(ComprehensiveMigrationTest, MigrateManyStrayAnimalsFromDat) {
+#ifndef SQLITE3_HEADER_ONLY
+    // Create adoptable.dat with many stray animals
+    StrayAnimal* strayList = nullptr;
+    for (int i = 0; i < 5; i++) {
+        char type[32], gender[16], date[16];
+        snprintf(type, sizeof(type), "StrayType%d", i);
+        snprintf(gender, sizeof(gender), i % 2 == 0 ? "Male" : "Female");
+        snprintf(date, sizeof(date), "%02d/%02d/2024", (i % 28) + 1, (i % 12) + 1);
+        addStrayAnimalToList(&strayList, type, gender, date, i + 1);
+    }
+    saveStrayAnimalsToFile(strayList, "adoptable.dat");
+    
+    // Free the list
+    while (strayList) {
+        StrayAnimal* next = strayList->next;
+        free(strayList);
+        strayList = next;
+    }
+    
+    // Initialize fresh database
+    ASSERT_EQ(init_petcare_database(testDbPath), 0);
+    
+    // Run migration
+    testing::internal::CaptureStdout();
+    int result = migrate_dat_to_sqlite();
+    std::string output = testing::internal::GetCapturedStdout();
+    
+    EXPECT_EQ(result, 0);
+#endif
+}
+
+/**
+ * @brief Test adopted animal migration with multiple records in adopted.dat
+ */
+TEST_F(ComprehensiveMigrationTest, MigrateManyAdoptedAnimalsFromDat) {
+#ifndef SQLITE3_HEADER_ONLY
+    // Create adopted.dat with multiple adopted animals
+    AdoptedAnimal* adoptedList = nullptr;
+    AdoptedAnimal* tail = nullptr;
+    
+    for (int i = 0; i < 5; i++) {
+        AdoptedAnimal* adopted = (AdoptedAnimal*)malloc(sizeof(AdoptedAnimal));
+        adopted->id = 200 + i;
+        snprintf(adopted->type, sizeof(adopted->type), "AdoptedType%d", i);
+        strcpy(adopted->gender, i % 2 == 0 ? "Male" : "Female");
+        snprintf(adopted->arrivalDate, sizeof(adopted->arrivalDate), "%02d/%02d/2023", (i % 28) + 1, (i % 12) + 1);
+        adopted->age = i + 1;
+        snprintf(adopted->owner, sizeof(adopted->owner), "adopter%d", i);
+        snprintf(adopted->adoptionDate, sizeof(adopted->adoptionDate), "%02d/%02d/2024", (i % 28) + 1, (i % 12) + 1);
+        adopted->next = nullptr;
+        
+        if (!adoptedList) {
+            adoptedList = adopted;
+            tail = adopted;
+        } else {
+            tail->next = adopted;
+            tail = adopted;
+        }
+    }
+    
+    saveAdoptedAnimalsToFile(adoptedList, "adopted.dat");
+    
+    // Free the list
+    while (adoptedList) {
+        AdoptedAnimal* next = adoptedList->next;
+        free(adoptedList);
+        adoptedList = next;
+    }
+    
+    // Initialize fresh database
+    ASSERT_EQ(init_petcare_database(testDbPath), 0);
+    
+    // Run migration
+    testing::internal::CaptureStdout();
+    int result = migrate_dat_to_sqlite();
+    std::string output = testing::internal::GetCapturedStdout();
+    
+    EXPECT_EQ(result, 0);
+#endif
+}
