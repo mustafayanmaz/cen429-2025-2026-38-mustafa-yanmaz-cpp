@@ -22,6 +22,11 @@ nav:
     - Introduction: 'index.md'
     - Architecture: 'architecture.md'
     - Security: 'security.md'
+    - Security Documentation:
+        - Security Report: 'security/report.md'
+        - Asset Management: 'security/assets.md'
+        - Security Certification: 'security/security_certification.md'
+        - Penetration Test Plan: 'security/penetration_test_plan.md'
     - Developers: 'developers.md'
     - 'Windows Library Documentation': 'doxygenlibwin/html/index.html'
     - 'Windows Unit Test Documentation': 'doxygentestwin/html/index.html'
