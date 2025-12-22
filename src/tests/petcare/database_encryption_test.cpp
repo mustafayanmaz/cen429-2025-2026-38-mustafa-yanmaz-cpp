@@ -222,6 +222,157 @@ TEST_F(DatabaseEncryptionTest, KeyNotExposedInMemory) {
     EXPECT_FALSE(found_plaintext) << "Plaintext key should not be found in obfuscated data";
 }
 
+/**
+ * @brief Test obfuscated string with small buffer (covers reveal_obfuscated_string edge case)
+ */
+TEST_F(DatabaseEncryptionTest, RevealWithSmallBuffer) {
+    const char* test_key = "TestDatabaseKey123!@#";
+    ObfuscatedString obf_key;
+    
+    ASSERT_EQ(create_obfuscated_string(test_key, &obf_key), 0);
+    
+    // Try to reveal with buffer that's too small
+    char small_buffer[5];
+    int result = reveal_obfuscated_string(&obf_key, small_buffer, sizeof(small_buffer));
+    
+    // Should return error when buffer is too small
+    EXPECT_NE(result, 0) << "Should fail when buffer is too small";
+}
+
+/**
+ * @brief Test database operations after re-opening encrypted database
+ */
+TEST_F(DatabaseEncryptionTest, OperationsAfterReopen) {
+#ifndef SQLITE3_HEADER_ONLY
+    // First session - create and add data
+    db = db_init(test_db_path, "test_encryption_key");
+    ASSERT_NE(db, nullptr);
+    
+    int result = db_create_tables(db);
+    ASSERT_EQ(result, 0);
+    
+    result = db_add_user(db, "test_reopen_user", "encrypted_pass");
+    EXPECT_EQ(result, 0);
+    
+    result = db_add_pet(db, "ReopenPet", "Dog", 3, "test_reopen_user");
+    EXPECT_EQ(result, 0);
+    
+    db_close(db);
+    db = nullptr;
+    
+    // Second session - reopen and verify data persists
+    db = db_init(test_db_path, "test_encryption_key");
+    ASSERT_NE(db, nullptr);
+    
+    // Verify user exists
+    int exists = db_user_exists(db, "test_reopen_user");
+    EXPECT_EQ(exists, 1) << "User should persist after reopen";
+    
+    // Verify pet ownership
+    int owned = db_is_pet_owned_by(db, "ReopenPet", "test_reopen_user");
+    EXPECT_EQ(owned, 1) << "Pet ownership should persist after reopen";
+#endif
+}
+
+/**
+ * @brief Test database with NULL obfuscated string
+ */
+TEST_F(DatabaseEncryptionTest, NullObfuscatedString) {
+    char buffer[256];
+    
+    // Test reveal with NULL obfuscated string
+    int result = reveal_obfuscated_string(nullptr, buffer, sizeof(buffer));
+    EXPECT_NE(result, 0) << "Should fail with NULL obfuscated string";
+}
+
+/**
+ * @brief Test database with NULL output buffer
+ */
+TEST_F(DatabaseEncryptionTest, NullOutputBuffer) {
+    const char* test_key = "TestKey123";
+    ObfuscatedString obf_key;
+    
+    ASSERT_EQ(create_obfuscated_string(test_key, &obf_key), 0);
+    
+    // Test reveal with NULL output buffer
+    int result = reveal_obfuscated_string(&obf_key, nullptr, 256);
+    EXPECT_NE(result, 0) << "Should fail with NULL output buffer";
+}
+
+/**
+ * @brief Test creating obfuscated string with NULL input
+ */
+TEST_F(DatabaseEncryptionTest, CreateWithNullInput) {
+    ObfuscatedString obf_key;
+    
+    // Test create with NULL input string
+    int result = create_obfuscated_string(nullptr, &obf_key);
+    EXPECT_NE(result, 0) << "Should fail with NULL input string";
+}
+
+/**
+ * @brief Test creating obfuscated string with NULL output struct
+ */
+TEST_F(DatabaseEncryptionTest, CreateWithNullOutput) {
+    const char* test_key = "TestKey123";
+    
+    // Test create with NULL output struct
+    int result = create_obfuscated_string(test_key, nullptr);
+    EXPECT_NE(result, 0) << "Should fail with NULL output struct";
+}
+
+/**
+ * @brief Test encrypted database initialization with very long path
+ */
+TEST_F(DatabaseEncryptionTest, LongPathEncryptedInit) {
+#ifndef SQLITE3_HEADER_ONLY
+    // Create a path that's reasonably long but within limits
+    char long_path[256];
+    memset(long_path, 'a', sizeof(long_path) - 10);
+    strcpy(long_path + sizeof(long_path) - 10, ".db");
+    
+    // This might fail due to filesystem limitations, which is expected
+    db = db_init(long_path, "test_key");
+    // Either success or failure is acceptable based on OS/filesystem limits
+    if (db) {
+        db_close(db);
+        db = nullptr;
+        remove(long_path);
+        char enc_path[260];
+        snprintf(enc_path, sizeof(enc_path), "%s.enc", long_path);
+        remove(enc_path);
+    }
+#endif
+}
+
+/**
+ * @brief Test that secure wipe clears all memory
+ */
+TEST_F(DatabaseEncryptionTest, SecureWipeVerification) {
+    char sensitive_data[64];
+    const char* pattern = "SENSITIVE_DATA_1234567890";
+    
+    // Fill buffer with sensitive pattern
+    memset(sensitive_data, 0, sizeof(sensitive_data));
+    strncpy(sensitive_data, pattern, sizeof(sensitive_data) - 1);
+    
+    // Verify pattern is present
+    EXPECT_EQ(memcmp(sensitive_data, pattern, strlen(pattern)), 0);
+    
+    // Wipe the memory
+    secure_wipe(sensitive_data, sizeof(sensitive_data));
+    
+    // Verify all bytes are zero
+    bool all_zero = true;
+    for (size_t i = 0; i < sizeof(sensitive_data); i++) {
+        if (sensitive_data[i] != 0) {
+            all_zero = false;
+            break;
+        }
+    }
+    EXPECT_TRUE(all_zero) << "All bytes should be zero after secure wipe";
+}
+
 // Run all tests
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);

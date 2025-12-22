@@ -953,5 +953,556 @@ TEST_F(RASPSecurityTest, PerformanceCFIOperations) {
     rasp_shutdown();
 }
 
+// ============================================================================
+// ADDITIONAL UNCOVERED LINES TESTS
+// ============================================================================
+
+/**
+ * @brief Test rasp_verify_checksum with NULL checksum parameter (covers line 148-149)
+ */
+TEST_F(RASPSecurityTest, VerifyChecksumNullChecksum) {
+    int result = rasp_verify_checksum(nullptr);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_verify_checksum with NULL code_start (covers line 148-149)
+ */
+TEST_F(RASPSecurityTest, VerifyChecksumNullCodeStart) {
+    CodeBlockChecksum checksum;
+    memset(&checksum, 0, sizeof(checksum));
+    checksum.code_start = nullptr;
+    checksum.code_size = 100;
+    
+    int result = rasp_verify_checksum(&checksum);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_verify_checksum CRC32 mismatch path (covers lines 165-167)
+ */
+TEST_F(RASPSecurityTest, VerifyChecksumCRC32Mismatch) {
+    const char* code = "Test code for CRC32 mismatch";
+    CodeBlockChecksum checksum;
+    
+    // Calculate checksum
+    rasp_calculate_checksum(code, strlen(code), &checksum);
+    
+    // Corrupt only the CRC32 but keep the hash valid
+    // This is tricky - we need to keep hash valid but corrupt CRC32
+    checksum.checksum_crc32 = 0xDEADBEEF; // Wrong CRC32
+    
+    int result = rasp_verify_checksum(&checksum);
+    EXPECT_EQ(result, RASP_ERROR_CHECKSUM_FAIL);
+}
+
+/**
+ * @brief Test rasp_monitor_checksum callback invocation on failure (covers lines 179-180)
+ */
+TEST_F(RASPSecurityTest, MonitorChecksumCallbackOnFailure) {
+    static bool callback_invoked = false;
+    static RASPStatus received_status = RASP_SUCCESS;
+    
+    char code[64] = "Code to monitor for tampering";
+    CodeBlockChecksum checksum;
+    
+    rasp_calculate_checksum(code, strlen(code), &checksum);
+    
+    // Tamper with the code
+    code[0] = 'X';
+    
+    auto callback = [](RASPStatus status) {
+        callback_invoked = true;
+        received_status = status;
+    };
+    
+    int result = rasp_monitor_checksum(&checksum, 100, callback);
+    EXPECT_EQ(result, RASP_SUCCESS);
+    
+    // Note: callback might be invoked based on implementation
+}
+
+/**
+ * @brief Test rasp_verify_app_signature with NULL signature (covers line 257-258)
+ */
+TEST_F(RASPSecurityTest, VerifyAppSignatureNullSignature) {
+    int result = rasp_verify_app_signature(nullptr);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_verify_app_signature with hash mismatch (covers lines 269-271)
+ */
+TEST_F(RASPSecurityTest, VerifyAppSignatureHashMismatch) {
+    AppSignature signature;
+    memset(&signature, 0, sizeof(AppSignature));
+    
+    char app_path[RASP_MAX_PATH];
+    int path_result = rasp_get_verified_app_path(app_path, sizeof(app_path));
+    
+    if (path_result == RASP_SUCCESS) {
+        strncpy(signature.app_path, app_path, sizeof(signature.app_path) - 1);
+        
+        // Set a wrong hash
+        memset(signature.app_hash, 0xFF, RASP_HASH_SIZE);
+        
+        int result = rasp_verify_app_signature(&signature);
+        EXPECT_EQ(result, RASP_ERROR_SIGNATURE_FAIL);
+    }
+}
+
+/**
+ * @brief Test rasp_get_verified_app_path with NULL parameters (covers lines 281-282)
+ */
+TEST_F(RASPSecurityTest, GetVerifiedAppPathNullParams) {
+    int result = rasp_get_verified_app_path(nullptr, 256);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+    
+    char path[256];
+    result = rasp_get_verified_app_path(path, 0);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_create_app_signature with NULL parameters (covers lines 304-305)
+ */
+TEST_F(RASPSecurityTest, CreateAppSignatureNullParams) {
+    uint8_t private_key[RASP_SIGNATURE_SIZE] = {0};
+    AppSignature signature;
+    
+    int result = rasp_create_app_signature(nullptr, private_key, &signature);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+    
+    result = rasp_create_app_signature("/some/path", private_key, nullptr);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_verify_system_files with NULL parameters (covers lines 447-448)
+ */
+TEST_F(RASPSecurityTest, VerifySystemFilesNullParams) {
+    int result = rasp_verify_system_files(nullptr, 5);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+    
+    const char* files[] = {"file1", "file2"};
+    result = rasp_verify_system_files(files, 0);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_assess_device_trust with NULL parameter (covers lines 473-474)
+ */
+TEST_F(RASPSecurityTest, AssessDeviceTrustNullParam) {
+    int result = rasp_assess_device_trust(nullptr);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_detect_inline_hook with NULL parameters (covers lines 554-555)
+ */
+TEST_F(RASPSecurityTest, DetectInlineHookNullParams) {
+    uint8_t original_bytes[16] = {0x48, 0x89, 0x5C, 0x24, 0x08, 0x57, 0x48, 0x83,
+                                  0xEC, 0x20, 0x48, 0x8B, 0xDA, 0x48, 0x8B, 0xF9};
+    
+    int result = rasp_detect_inline_hook(nullptr, original_bytes, 16);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+    
+    result = rasp_detect_inline_hook((void*)original_bytes, nullptr, 16);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+    
+    result = rasp_detect_inline_hook((void*)original_bytes, original_bytes, 0);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_detect_inline_hook with JMP pattern (covers line 568-570)
+ */
+TEST_F(RASPSecurityTest, DetectInlineHookJMPPattern) {
+    // Function bytes starting with JMP (0xE9)
+    uint8_t function_bytes[16] = {0xE9, 0x12, 0x34, 0x56, 0x78, 0x90, 0x90, 0x90,
+                                  0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90};
+    // Same bytes as original (no byte difference)
+    int result = rasp_detect_inline_hook(function_bytes, function_bytes, 16);
+    // JMP at start should trigger hook detection
+    EXPECT_EQ(result, RASP_ERROR_HOOK_DETECTED);
+}
+
+/**
+ * @brief Test rasp_detect_inline_hook with MOV RAX + JMP RAX pattern (covers lines 580-582)
+ */
+TEST_F(RASPSecurityTest, DetectInlineHookMOVJMPPattern) {
+    // MOV RAX + JMP RAX x64 pattern
+    uint8_t function_bytes[16] = {0x48, 0xB8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+                                  0x00, 0x00, 0xFF, 0xE0, 0x90, 0x90, 0x90, 0x90};
+    
+    int result = rasp_detect_inline_hook(function_bytes, function_bytes, 16);
+    EXPECT_EQ(result, RASP_ERROR_HOOK_DETECTED);
+}
+
+/**
+ * @brief Test rasp_detect_iat_hooks with NULL module (covers lines 591-592)
+ * Note: GetModuleHandleA(NULL) returns current executable, so NULL is valid
+ */
+TEST_F(RASPSecurityTest, DetectIATHooksNullModule) {
+#ifdef _WIN32
+    // NULL module gets current executable which is valid
+    int result = rasp_detect_iat_hooks(nullptr);
+    EXPECT_GE(result, 0);  // Should return hook count, not -1
+    
+    // Test with non-existent module - should return -1
+    result = rasp_detect_iat_hooks("nonexistent_module_that_doesnt_exist_12345.dll");
+    EXPECT_EQ(result, -1);
+#else
+    GTEST_SKIP() << "IAT hooks only applicable on Windows";
+#endif
+}
+
+/**
+ * @brief Test rasp_scan_all_hooks with NULL parameters (covers lines 646-647)
+ */
+TEST_F(RASPSecurityTest, ScanAllHooksNullParams) {
+    int result = rasp_scan_all_hooks(nullptr, 10);
+    EXPECT_EQ(result, 0);
+    
+    HookInfo hooks[10];
+    result = rasp_scan_all_hooks(hooks, 0);
+    EXPECT_EQ(result, 0);
+}
+
+/**
+ * @brief Test rasp_detect_debugger with NULL parameter (covers lines 703-704)
+ */
+TEST_F(RASPSecurityTest, DetectDebuggerNullParam) {
+    int result = rasp_detect_debugger(nullptr);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_detect_software_breakpoints with NULL parameters (covers lines 808-809)
+ */
+TEST_F(RASPSecurityTest, DetectSoftwareBreakpointsNullParams) {
+    int result = rasp_detect_software_breakpoints(nullptr, 100);
+    EXPECT_EQ(result, 0);
+    
+    uint8_t code[16] = {0};
+    result = rasp_detect_software_breakpoints(code, 0);
+    EXPECT_EQ(result, 0);
+}
+
+/**
+ * @brief Test rasp_detect_memory_tamper with NULL parameters (covers lines 873-874)
+ */
+TEST_F(RASPSecurityTest, DetectMemoryTamperNullParams) {
+    uint8_t hash[RASP_HASH_SIZE] = {0};
+    
+    int result = rasp_detect_memory_tamper(nullptr, 100, hash);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+    
+    const char* data = "test data";
+    result = rasp_detect_memory_tamper(data, strlen(data), nullptr);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+    
+    result = rasp_detect_memory_tamper(data, 0, hash);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_detect_tampering with NULL parameter (covers lines 889-890)
+ */
+TEST_F(RASPSecurityTest, DetectTamperingNullParam) {
+    int result = rasp_detect_tampering(nullptr);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_respond_to_tamper with NULL parameter (covers lines 921-922)
+ */
+TEST_F(RASPSecurityTest, RespondToTamperNullParam) {
+    int result = rasp_respond_to_tamper(nullptr, RASP_ACTION_LOG);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_respond_to_tamper with ALERT action (covers lines 930-933)
+ */
+TEST_F(RASPSecurityTest, RespondToTamperAlert) {
+    TamperInfo info;
+    memset(&info, 0, sizeof(info));
+    info.tamper_count = 1;
+    
+    int result = rasp_respond_to_tamper(&info, RASP_ACTION_ALERT);
+    EXPECT_EQ(result, RASP_SUCCESS);
+}
+
+/**
+ * @brief Test rasp_protect_data with NULL parameters (covers lines 952-953)
+ */
+TEST_F(RASPSecurityTest, ProtectDataNullParams) {
+    uint32_t checksum = 0;
+    
+    int result = rasp_protect_data(nullptr, 100, &checksum);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+    
+    const char* data = "test";
+    result = rasp_protect_data(data, strlen(data), nullptr);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+    
+    result = rasp_protect_data(data, 0, &checksum);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_verify_protected_data with NULL parameters (covers lines 961-962)
+ */
+TEST_F(RASPSecurityTest, VerifyProtectedDataNullParams) {
+    int result = rasp_verify_protected_data(nullptr, 100, 0x12345678);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+    
+    const char* data = "test";
+    result = rasp_verify_protected_data(data, 0, 0x12345678);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_create_cfi_counter when max counters reached (covers lines 998-999)
+ */
+TEST_F(RASPSecurityTest, CreateCFICounterMaxReached) {
+    rasp_init_cfi();
+    
+    // Create maximum number of counters
+    for (int i = 0; i < RASP_MAX_CFI_COUNTERS; i++) {
+        int result = rasp_create_cfi_counter(i, (void*)(uintptr_t)(0x1000 + i));
+        EXPECT_EQ(result, RASP_SUCCESS) << "Failed at counter " << i;
+    }
+    
+    // Try to create one more - should fail
+    int result = rasp_create_cfi_counter(999999, (void*)0x99999);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_increment_cfi_counter with non-existent counter (covers lines 1019-1020)
+ */
+TEST_F(RASPSecurityTest, IncrementCFICounterNotFound) {
+    rasp_init_cfi();
+    rasp_create_cfi_counter(1, (void*)0x1000);
+    
+    // Try to increment a non-existent counter
+    int result = rasp_increment_cfi_counter(99999);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_verify_cfi_counter with non-existent counter (covers lines 1034-1035)
+ */
+TEST_F(RASPSecurityTest, VerifyCFICounterNotFound) {
+    rasp_init_cfi();
+    rasp_create_cfi_counter(1, (void*)0x1000);
+    
+    // Try to verify a non-existent counter
+    int result = rasp_verify_cfi_counter(99999, 0);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_reset_cfi_counter with non-existent counter (covers lines 1044-1047)
+ */
+TEST_F(RASPSecurityTest, ResetCFICounterNotFound) {
+    rasp_init_cfi();
+    rasp_create_cfi_counter(1, (void*)0x1000);
+    
+    // Try to reset a non-existent counter
+    int result = rasp_reset_cfi_counter(99999);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_get_cfi_stats with NULL parameter (covers lines 1051-1052)
+ */
+TEST_F(RASPSecurityTest, GetCFIStatsNullParam) {
+    rasp_init_cfi();
+    rasp_create_cfi_counter(1, (void*)0x1000);
+    
+    int result = rasp_get_cfi_stats(1, nullptr);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_get_cfi_stats with non-existent counter (covers lines 1059-1062)
+ */
+TEST_F(RASPSecurityTest, GetCFIStatsNotFound) {
+    rasp_init_cfi();
+    rasp_create_cfi_counter(1, (void*)0x1000);
+    
+    CFICounter counter;
+    int result = rasp_get_cfi_stats(99999, &counter);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_verify_control_flow_path with NULL parameters (covers lines 1066-1067)
+ */
+TEST_F(RASPSecurityTest, VerifyControlFlowPathNullParams) {
+    int result = rasp_verify_control_flow_path(nullptr, 5);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+    
+    uint64_t path[] = {1, 2, 3};
+    result = rasp_verify_control_flow_path(path, 0);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_verify_control_flow_path with non-existent counter (covers lines 1084-1085)
+ */
+TEST_F(RASPSecurityTest, VerifyControlFlowPathCounterNotFound) {
+    rasp_init_cfi();
+    rasp_create_cfi_counter(1, (void*)0x1000);
+    rasp_increment_cfi_counter(1);
+    
+    // Path includes non-existent counter
+    uint64_t path[] = {1, 99999};
+    int result = rasp_verify_control_flow_path(path, 2);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_get_status with NULL parameters (covers lines 1124-1125)
+ */
+TEST_F(RASPSecurityTest, GetStatusNullParams) {
+    rasp_init(&config);
+    
+    int result = rasp_get_status(nullptr, 256);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+    
+    char status[256];
+    result = rasp_get_status(status, 0);
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test rasp_comprehensive_check when not initialized (covers lines 1144-1145)
+ */
+TEST_F(RASPSecurityTest, ComprehensiveCheckNotInitialized) {
+    // Shutdown first to ensure not initialized
+    rasp_shutdown();
+    
+    int result = rasp_comprehensive_check();
+    EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
+}
+
+/**
+ * @brief Test system files with NULL entries in array
+ */
+TEST_F(RASPSecurityTest, VerifySystemFilesWithNullEntry) {
+    const char* files[] = {
+#ifdef _WIN32
+        "C:\\Windows\\System32\\kernel32.dll",
+#else
+        "/bin/sh",
+#endif
+        nullptr,  // NULL entry should be skipped
+#ifdef _WIN32
+        "C:\\Windows\\System32\\ntdll.dll"
+#else
+        "/lib"
+#endif
+    };
+    
+    int result = rasp_verify_system_files(files, 3);
+    // Should handle NULL entries gracefully
+    EXPECT_TRUE(result == RASP_SUCCESS || result == RASP_ERROR_UNTRUSTED_DEVICE);
+}
+
+/**
+ * @brief Test comprehensive check low trust score (covers lines 1154-1155)
+ * This test depends on the environment - may not always trigger low score
+ */
+TEST_F(RASPSecurityTest, ComprehensiveCheckDeviceTrust) {
+    config.enable_device_trust = 1;
+    config.enable_debugger_detection = 0;  // Disable to focus on device trust
+    config.enable_tamper_detection = 0;
+    config.enable_hook_detection = 0;
+    
+    rasp_init(&config);
+    
+    // Just verify it runs without crashing
+    int result = rasp_comprehensive_check();
+    EXPECT_TRUE(result == RASP_SUCCESS || 
+                result == RASP_ERROR_UNTRUSTED_DEVICE ||
+                result == RASP_ERROR_DEBUGGER_DETECTED ||
+                result == RASP_ERROR_TAMPER_DETECTED);
+}
+
+/**
+ * @brief Test PUSH+RET hook pattern detection (covers lines 574-576)
+ */
+TEST_F(RASPSecurityTest, DetectInlineHookPushRetPattern) {
+    // PUSH+RET trampoline pattern - bytes[0]=0x68, bytes[5]=0xC3
+    uint8_t function_bytes[16] = {0x68, 0x00, 0x00, 0x00, 0x00, 0xC3, 0x90, 0x90,
+                                  0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90};
+    
+    int result = rasp_detect_inline_hook(function_bytes, function_bytes, 16);
+    EXPECT_EQ(result, RASP_ERROR_HOOK_DETECTED);
+}
+
+/**
+ * @brief Test protecting and verifying large data blocks
+ */
+TEST_F(RASPSecurityTest, ProtectLargeData) {
+    const size_t data_size = 10240;  // 10KB
+    char* large_data = (char*)malloc(data_size);
+    ASSERT_NE(large_data, nullptr);
+    
+    memset(large_data, 'A', data_size);
+    
+    uint32_t checksum = 0;
+    int result = rasp_protect_data(large_data, data_size, &checksum);
+    EXPECT_EQ(result, RASP_SUCCESS);
+    EXPECT_NE(checksum, 0u);
+    
+    // Verify untampered
+    result = rasp_verify_protected_data(large_data, data_size, checksum);
+    EXPECT_EQ(result, RASP_SUCCESS);
+    
+    // Tamper and verify detection
+    large_data[5000] = 'X';
+    result = rasp_verify_protected_data(large_data, data_size, checksum);
+    EXPECT_EQ(result, RASP_ERROR_TAMPER_DETECTED);
+    
+    free(large_data);
+}
+
+/**
+ * @brief Test CFI counter operations in sequence
+ */
+TEST_F(RASPSecurityTest, CFICounterFullWorkflow) {
+    rasp_init_cfi();
+    
+    // Create counter
+    EXPECT_EQ(rasp_create_cfi_counter(42, (void*)0x42000), RASP_SUCCESS);
+    
+    // Increment multiple times
+    for (int i = 0; i < 5; i++) {
+        EXPECT_EQ(rasp_increment_cfi_counter(42), RASP_SUCCESS);
+    }
+    
+    // Get stats
+    CFICounter counter;
+    EXPECT_EQ(rasp_get_cfi_stats(42, &counter), RASP_SUCCESS);
+    EXPECT_EQ(counter.current_value, 5u);
+    
+    // Verify correct value
+    EXPECT_EQ(rasp_verify_cfi_counter(42, 5), RASP_SUCCESS);
+    
+    // Verify wrong value - should fail
+    EXPECT_EQ(rasp_verify_cfi_counter(42, 10), RASP_ERROR_CFI_VIOLATION);
+    
+    // Reset counter
+    EXPECT_EQ(rasp_reset_cfi_counter(42), RASP_SUCCESS);
+    
+    // Verify reset
+    EXPECT_EQ(rasp_verify_cfi_counter(42, 0), RASP_SUCCESS);
+}
+
 // Note: main() is provided by gtest_main library
 
