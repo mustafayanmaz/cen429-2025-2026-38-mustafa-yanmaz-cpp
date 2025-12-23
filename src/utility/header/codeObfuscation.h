@@ -29,6 +29,8 @@ extern "C" {
 /**
  * @brief Opaque predicate that always returns true
  * @details Uses mathematical property: (x^2 + x) is always even
+ * @param x Input value (does not affect result)
+ * @return Always returns 1 (true)
  */
 static inline int opaque_true(int x) {
     volatile int a = x * x + x;
@@ -39,6 +41,8 @@ static inline int opaque_true(int x) {
 /**
  * @brief Opaque predicate that always returns false
  * @details Uses mathematical property: (x^2 + x) % 2 can never be 1
+ * @param x Input value (does not affect result)
+ * @return Always returns 0 (false)
  */
 static inline int opaque_false(int x) {
     volatile int a = x * x + x;
@@ -48,6 +52,9 @@ static inline int opaque_false(int x) {
 
 /**
  * @brief Complex opaque predicate using multiple operations
+ * @param x First input value
+ * @param y Second input value
+ * @return Always returns 1 (true)
  */
 static inline int opaque_complex(int x, int y) {
     volatile int result = ((x * x) - (y * y)) == ((x + y) * (x - y));
@@ -71,6 +78,9 @@ static inline int obf_add(int a, int b) {
 
 /**
  * @brief Obfuscated subtraction: a - b
+ * @param a First operand
+ * @param b Second operand to subtract
+ * @return Result of a - b
  */
 static inline int obf_sub(int a, int b) {
     volatile int not_b = ~b + 1;
@@ -79,6 +89,9 @@ static inline int obf_sub(int a, int b) {
 
 /**
  * @brief Obfuscated multiplication by constant
+ * @param x Value to multiply
+ * @param c Constant multiplier
+ * @return Result of x * c
  */
 static inline int obf_mul_const(int x, int c) {
     volatile int result = 0;
@@ -97,6 +110,9 @@ static inline int obf_mul_const(int x, int c) {
 
 /**
  * @brief Obfuscated comparison: returns 1 if a == b, 0 otherwise
+ * @param a First value to compare
+ * @param b Second value to compare
+ * @return 1 if equal, 0 otherwise
  */
 static inline int obf_equals(int a, int b) {
     volatile int diff = a ^ b;
@@ -138,6 +154,7 @@ static inline void opaque_loop_n(int n, void (*callback)(int)) {
 
 /**
  * @brief Complex loop with opaque predicates
+ * @param iterations Number of iterations to execute
  */
 static inline void opaque_loop_complex(int iterations) {
     volatile int i = 0;
@@ -168,6 +185,9 @@ static inline void opaque_loop_complex(int iterations) {
 
 /**
  * @brief Simple XOR-based string obfuscation
+ * @param str String to obfuscate (modified in place)
+ * @param len Length of the string
+ * @param key Initial XOR key
  */
 static inline void obf_xor_string(char* str, size_t len, uint8_t key) {
     volatile uint8_t k = key;
@@ -190,6 +210,12 @@ static inline void obf_xor_string(char* str, size_t len, uint8_t key) {
  */
 #define OBFUSCATED_STRING(str) obf_decode_string(str, sizeof(str) - 1)
 
+/**
+ * @brief Decode an obfuscated string at runtime
+ * @param encoded Pointer to encoded string data
+ * @param len Length of the encoded string
+ * @return Pointer to decoded string in static buffer
+ */
 static inline char* obf_decode_string(const char* encoded, size_t len) {
     static char buffer[512];
     volatile size_t copy_len = (len < 511) ? len : 511;
@@ -209,6 +235,9 @@ static inline char* obf_decode_string(const char* encoded, size_t len) {
 
 /**
  * @brief Encode function parameter
+ * @param param Parameter value to encode
+ * @param seed Seed value for encoding
+ * @return Encoded parameter value
  */
 static inline uint32_t encode_param(uint32_t param, uint32_t seed) {
     volatile uint32_t encoded = param ^ seed;
@@ -219,6 +248,9 @@ static inline uint32_t encode_param(uint32_t param, uint32_t seed) {
 
 /**
  * @brief Decode function parameter
+ * @param encoded Encoded parameter value
+ * @param seed Seed value used for encoding
+ * @return Decoded original parameter value
  */
 static inline uint32_t decode_param(uint32_t encoded, uint32_t seed) {
     volatile uint32_t decoded = encoded ^ 0xDEADBEEF;
@@ -235,13 +267,15 @@ static inline uint32_t decode_param(uint32_t encoded, uint32_t seed) {
  * @brief Control flow dispatcher state
  */
 typedef struct {
-    volatile int state;
-    volatile int next_state;
-    volatile int dummy_state;
+    volatile int state;       /**< Current state of the dispatcher */
+    volatile int next_state;  /**< Next state to transition to */
+    volatile int dummy_state; /**< Dummy state for obfuscation */
 } CFDispatcher;
 
 /**
  * @brief Initialize control flow dispatcher
+ * @param disp Pointer to dispatcher structure to initialize
+ * @param initial_state Initial state value
  */
 static inline void cf_init(CFDispatcher* disp, int initial_state) {
     disp->state = initial_state;
@@ -251,6 +285,8 @@ static inline void cf_init(CFDispatcher* disp, int initial_state) {
 
 /**
  * @brief Transition to next state with obfuscation
+ * @param disp Pointer to dispatcher structure
+ * @param next Next state value to transition to
  */
 static inline void cf_transition(CFDispatcher* disp, int next) {
     volatile int dummy = rand() | 1;
@@ -268,6 +304,8 @@ static inline void cf_transition(CFDispatcher* disp, int next) {
 
 /**
  * @brief Get current state with obfuscation
+ * @param disp Pointer to dispatcher structure
+ * @return Current state value
  */
 static inline int cf_get_state(CFDispatcher* disp) {
     volatile int dummy = rand() | 1;
@@ -287,6 +325,7 @@ static inline int cf_get_state(CFDispatcher* disp) {
 
 /**
  * @brief Inject dead code that appears useful but never executes
+ * @param complexity Complexity level of the dead code
  */
 static inline void inject_dead_code(int complexity) {
     volatile int dummy = rand() | 1;
@@ -307,6 +346,10 @@ static inline void inject_dead_code(int complexity) {
 
 /**
  * @brief Fake function that appears to do something but doesn't
+ * @param a First parameter (unused)
+ * @param b Second parameter (unused)
+ * @param c Third parameter (unused)
+ * @return Always returns 0
  */
 static inline int fake_operation(int a, int b, int c) {
     volatile int result = 0;
@@ -327,6 +370,8 @@ static inline int fake_operation(int a, int b, int c) {
 
 /**
  * @brief Obfuscated string copy
+ * @param dest Destination buffer
+ * @param src Source string to copy
  */
 static inline void obf_strcpy(char* dest, const char* src) {
     volatile size_t i = 0;
@@ -348,6 +393,9 @@ static inline void obf_strcpy(char* dest, const char* src) {
 
 /**
  * @brief Obfuscated memory copy
+ * @param dest Destination buffer
+ * @param src Source buffer to copy
+ * @param n Number of bytes to copy
  */
 static inline void obf_memcpy(void* dest, const void* src, size_t n) {
     volatile unsigned char* d = (unsigned char*)dest;
@@ -367,6 +415,8 @@ static inline void obf_memcpy(void* dest, const void* src, size_t n) {
 
 /**
  * @brief Obfuscated string length
+ * @param str String to measure
+ * @return Length of the string
  */
 static inline size_t obf_strlen(const char* str) {
     volatile size_t len = 0;
@@ -388,6 +438,9 @@ static inline size_t obf_strlen(const char* str) {
 
 /**
  * @brief Obfuscated string compare
+ * @param s1 First string to compare
+ * @param s2 Second string to compare
+ * @return 0 if equal, non-zero if different
  */
 static inline int obf_strcmp(const char* s1, const char* s2) {
     volatile size_t i = 0;
@@ -412,6 +465,9 @@ static inline int obf_strcmp(const char* s1, const char* s2) {
 
 /**
  * @brief Obfuscated memory set
+ * @param ptr Pointer to memory to fill
+ * @param value Value to set each byte to
+ * @param num Number of bytes to set
  */
 static inline void obf_memset(void* ptr, int value, size_t num) {
     volatile unsigned char* p = (unsigned char*)ptr;
@@ -437,6 +493,7 @@ static inline void obf_memset(void* ptr, int value, size_t num) {
 
 /**
  * @brief Function with multiple obfuscated exit points
+ * @param input Input value used to determine initial state
  * @return Always returns success (0) but through complex paths
  */
 static inline int obf_multi_exit(int input) {
@@ -501,18 +558,30 @@ static inline int obf_multi_exit(int input) {
 // ============================================================================
 
 #ifdef NDEBUG
+    /** @brief General log output (disabled in release) */
     #define OBF_LOG(...)
+    /** @brief Debug level log output (disabled in release) */
     #define OBF_DEBUG(...)
+    /** @brief Info level log output (disabled in release) */
     #define OBF_INFO(...)
+    /** @brief Warning level log output (disabled in release) */
     #define OBF_WARNING(...)
+    /** @brief Warning level log output alias (disabled in release) */
     #define OBF_WARN(...)
+    /** @brief Error level log output (disabled in release) */
     #define OBF_ERROR(...)
 #else
+    /** @brief General log output to stderr */
     #define OBF_LOG(...) fprintf(stderr, __VA_ARGS__)
+    /** @brief Debug level log output with prefix */
     #define OBF_DEBUG(...) fprintf(stderr, "[DEBUG] " __VA_ARGS__)
+    /** @brief Info level log output with prefix */
     #define OBF_INFO(...) fprintf(stderr, "[INFO] " __VA_ARGS__)
+    /** @brief Warning level log output with prefix */
     #define OBF_WARNING(...) fprintf(stderr, "[WARNING] " __VA_ARGS__)
+    /** @brief Warning level log output alias */
     #define OBF_WARN(...) fprintf(stderr, "[WARNING] " __VA_ARGS__)
+    /** @brief Error level log output with prefix */
     #define OBF_ERROR(...) fprintf(stderr, "[ERROR] " __VA_ARGS__)
 #endif
 

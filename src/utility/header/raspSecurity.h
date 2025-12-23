@@ -26,27 +26,32 @@ extern "C" {
 // CONSTANTS AND CONFIGURATION
 // ============================================================================
 
+/** @brief Size of hash values in bytes (SHA-256) */
 #define RASP_HASH_SIZE 32
+/** @brief Maximum size of digital signatures in bytes */
 #define RASP_SIGNATURE_SIZE 256
+/** @brief Maximum path length for file operations */
 #define RASP_MAX_PATH 512
+/** @brief Maximum number of hooks that can be tracked */
 #define RASP_MAX_HOOKS 64
+/** @brief Maximum number of CFI counters that can be created */
 #define RASP_MAX_CFI_COUNTERS 256
 
 /**
  * @brief RASP Security Status Codes
  */
 typedef enum {
-    RASP_SUCCESS = 0,
-    RASP_ERROR_INVALID_PARAM = -1,
-    RASP_ERROR_CHECKSUM_FAIL = -2,
-    RASP_ERROR_SIGNATURE_FAIL = -3,
-    RASP_ERROR_UNTRUSTED_DEVICE = -4,
-    RASP_ERROR_HOOK_DETECTED = -5,
-    RASP_ERROR_DEBUGGER_DETECTED = -6,
-    RASP_ERROR_TAMPER_DETECTED = -7,
-    RASP_ERROR_CFI_VIOLATION = -8,
-    RASP_ERROR_MEMORY_ALLOCATION = -9,
-    RASP_ERROR_FILE_ACCESS = -10
+    RASP_SUCCESS = 0,                   /**< Operation completed successfully */
+    RASP_ERROR_INVALID_PARAM = -1,      /**< Invalid parameter passed to function */
+    RASP_ERROR_CHECKSUM_FAIL = -2,      /**< Checksum verification failed */
+    RASP_ERROR_SIGNATURE_FAIL = -3,     /**< Digital signature verification failed */
+    RASP_ERROR_UNTRUSTED_DEVICE = -4,   /**< Device is not trusted */
+    RASP_ERROR_HOOK_DETECTED = -5,      /**< Hook attack detected */
+    RASP_ERROR_DEBUGGER_DETECTED = -6,  /**< Debugger presence detected */
+    RASP_ERROR_TAMPER_DETECTED = -7,    /**< Memory or code tampering detected */
+    RASP_ERROR_CFI_VIOLATION = -8,      /**< Control flow integrity violation */
+    RASP_ERROR_MEMORY_ALLOCATION = -9,  /**< Memory allocation failed */
+    RASP_ERROR_FILE_ACCESS = -10        /**< File access error */
 } RASPStatus;
 
 /**
@@ -516,16 +521,16 @@ int rasp_verify_control_flow_path(const uint64_t* path_counters, size_t path_len
  * @brief RASP configuration
  */
 typedef struct {
-    int enable_checksum_verification;
-    int enable_signature_verification;
-    int enable_device_trust;
-    int enable_hook_detection;
-    int enable_debugger_detection;
-    int enable_tamper_detection;
-    int enable_cfi;
-    uint32_t monitoring_interval_ms;
-    RASPAction default_action;
-    void (*log_callback)(const char* message);
+    int enable_checksum_verification;   /**< Enable code checksum verification */
+    int enable_signature_verification;  /**< Enable app signature verification */
+    int enable_device_trust;            /**< Enable device trust assessment */
+    int enable_hook_detection;          /**< Enable hook attack detection */
+    int enable_debugger_detection;      /**< Enable debugger detection */
+    int enable_tamper_detection;        /**< Enable tamper detection */
+    int enable_cfi;                     /**< Enable control flow integrity */
+    uint32_t monitoring_interval_ms;    /**< Monitoring check interval in milliseconds */
+    RASPAction default_action;          /**< Default action on security violation */
+    void (*log_callback)(const char* message); /**< Callback function for logging events */
 } RASPConfig;
 
 /**

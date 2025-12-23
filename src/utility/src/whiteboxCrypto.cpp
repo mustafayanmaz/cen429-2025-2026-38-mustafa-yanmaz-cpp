@@ -22,7 +22,9 @@
 // AES Constants and Tables
 // ============================================================================
 
-// AES S-box
+/**
+ * @brief AES S-box used for SubBytes transformation.
+ */
 static const uint8_t AES_SBOX[256] = {
     0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
     0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
@@ -42,6 +44,9 @@ static const uint8_t AES_SBOX[256] = {
     0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16
 };
 
+/**
+ * @brief AES inverse S-box used for InvSubBytes transformation.
+ */
 // AES Inverse S-box
 static const uint8_t AES_INV_SBOX[256] = {
     0x52, 0x09, 0x6a, 0xd5, 0x30, 0x36, 0xa5, 0x38, 0xbf, 0x40, 0xa3, 0x9e, 0x81, 0xf3, 0xd7, 0xfb,
@@ -62,6 +67,9 @@ static const uint8_t AES_INV_SBOX[256] = {
     0x17, 0x2b, 0x04, 0x7e, 0xba, 0x77, 0xd6, 0x26, 0xe1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0c, 0x7d
 };
 
+/**
+ * @brief Round constants (Rcon) used during AES key expansion.
+ */
 // Rcon for key expansion
 static const uint8_t RCON[11] = {
     0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36
@@ -71,6 +79,9 @@ static const uint8_t RCON[11] = {
 // DES Constants
 // ============================================================================
 
+/**
+ * @brief Simplified DES S-box tables used by the whitebox DES implementation.
+ */
 // DES S-boxes (simplified)
 static const uint8_t DES_SBOX[8][64] = {
     // S1
@@ -113,6 +124,12 @@ static const uint8_t DES_SBOX[8][64] = {
 // Helper Functions
 // ============================================================================
 
+/**
+ * @brief Galois field multiplication in GF(2^8) for AES MixColumns.
+ * @param a First operand.
+ * @param b Second operand.
+ * @return Result of the multiplication.
+ */
 static uint8_t gmul(uint8_t a, uint8_t b) {
     uint8_t p = 0;
     for (int i = 0; i < 8; i++) {
@@ -125,24 +142,41 @@ static uint8_t gmul(uint8_t a, uint8_t b) {
     return p;
 }
 
+/**
+ * @brief XOR the AES state with a round key.
+ * @param state 16-byte AES state (modified in place).
+ * @param round_key 16-byte round key.
+ */
 static void aes_add_round_key(uint8_t* state, const uint8_t* round_key) {
     for (int i = 0; i < 16; i++) {
         state[i] ^= round_key[i];
     }
 }
 
+/**
+ * @brief Apply AES SubBytes transformation to the state using the S-box.
+ * @param state 16-byte AES state (modified in place).
+ */
 static void aes_sub_bytes(uint8_t* state) {
     for (int i = 0; i < 16; i++) {
         state[i] = AES_SBOX[state[i]];
     }
 }
 
+/**
+ * @brief Apply AES inverse SubBytes transformation to the state.
+ * @param state 16-byte AES state (modified in place).
+ */
 static void aes_inv_sub_bytes(uint8_t* state) {
     for (int i = 0; i < 16; i++) {
         state[i] = AES_INV_SBOX[state[i]];
     }
 }
 
+/**
+ * @brief Apply AES ShiftRows transformation to the state.
+ * @param state 16-byte AES state (modified in place).
+ */
 static void aes_shift_rows(uint8_t* state) {
     uint8_t temp;
     
@@ -166,6 +200,10 @@ static void aes_shift_rows(uint8_t* state) {
     state[3] = temp;
 }
 
+/**
+ * @brief Apply AES inverse ShiftRows transformation to the state.
+ * @param state 16-byte AES state (modified in place).
+ */
 static void aes_inv_shift_rows(uint8_t* state) {
     uint8_t temp;
     
@@ -189,6 +227,10 @@ static void aes_inv_shift_rows(uint8_t* state) {
     state[15] = temp;
 }
 
+/**
+ * @brief Apply AES MixColumns transformation to the state.
+ * @param state 16-byte AES state (modified in place).
+ */
 static void aes_mix_columns(uint8_t* state) {
     for (int i = 0; i < 4; i++) {
         uint8_t s0 = state[i * 4];
@@ -203,6 +245,10 @@ static void aes_mix_columns(uint8_t* state) {
     }
 }
 
+/**
+ * @brief Apply AES inverse MixColumns transformation to the state.
+ * @param state 16-byte AES state (modified in place).
+ */
 static void aes_inv_mix_columns(uint8_t* state) {
     for (int i = 0; i < 4; i++) {
         uint8_t s0 = state[i * 4];
@@ -217,6 +263,11 @@ static void aes_inv_mix_columns(uint8_t* state) {
     }
 }
 
+/**
+ * @brief Expand a 128-bit AES key into round keys.
+ * @param key Pointer to 16-byte AES key.
+ * @param round_keys Output array of 11 round keys (each 16 bytes).
+ */
 static void aes_key_expansion(const uint8_t* key, uint8_t round_keys[11][16]) {
     memcpy(round_keys[0], key, 16);
     

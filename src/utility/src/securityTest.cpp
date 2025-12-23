@@ -18,10 +18,16 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <direct.h>
+/**
+ * @brief Cross-platform directory creation macro (Windows version).
+ */
 #define MKDIR(path) _mkdir(path)
 #else
 #include <sys/stat.h>
 #include <unistd.h>
+/**
+ * @brief Cross-platform directory creation macro (POSIX version).
+ */
 #define MKDIR(path) mkdir(path, 0777)
 #endif
 
@@ -29,6 +35,10 @@
 // INTERNAL HELPERS
 // ============================================================================
 
+/**
+ * @brief Get current timestamp in milliseconds
+ * @return Current time in milliseconds since system start
+ */
 static uint64_t get_timestamp_ms() {
 #ifdef _WIN32
     return (uint64_t)GetTickCount64();
@@ -39,6 +49,15 @@ static uint64_t get_timestamp_ms() {
 #endif
 }
 
+/**
+ * @brief Set test result fields
+ * @param result Pointer to result structure to fill
+ * @param id Test identifier string
+ * @param name Test name or description
+ * @param status Test result status
+ * @param severity Test severity level
+ * @param details Detailed result message
+ */
 static void set_result(SecurityTestResult* result, const char* id, const char* name,
                        SecurityTestStatus status, SecurityTestSeverity severity,
                        const char* details) {
@@ -54,6 +73,7 @@ static void set_result(SecurityTestResult* result, const char* id, const char* n
 // FRAMEWORK INITIALIZATION
 // ============================================================================
 
+/** @brief Flag indicating if the test framework is initialized */
 static int g_test_initialized = 0;
 
 int security_test_init(void) {
@@ -862,14 +882,23 @@ int sec_test_obf_control_flow(SecurityTestResult* result) {
 // TEST RUNNER
 // ============================================================================
 
+/**
+ * @brief Function pointer type for security test functions
+ * @param result Pointer to result structure to fill
+ * @return 0 if test passed, non-zero if failed
+ */
 typedef int (*TestFunction)(SecurityTestResult*);
 
+/**
+ * @brief Test entry structure for test registry
+ */
 typedef struct {
-    const char* test_id;
-    TestFunction func;
-    SecurityTestCategory category;
+    const char* test_id;        /**< Unique test identifier */
+    TestFunction func;          /**< Pointer to test function */
+    SecurityTestCategory category; /**< Test category flag */
 } TestEntry;
 
+/** @brief Array of registered security tests */
 static TestEntry g_tests[] = {
     {"AUTH-001", sec_test_auth_brute_force, SEC_CAT_AUTH},
     {"AUTH-002", sec_test_auth_password_storage, SEC_CAT_AUTH},
@@ -890,6 +919,7 @@ static TestEntry g_tests[] = {
     {"OBF-002", sec_test_obf_control_flow, SEC_CAT_OBFUSCATION}
 };
 
+/** @brief Total number of registered tests */
 static int g_test_count = sizeof(g_tests) / sizeof(g_tests[0]);
 
 int security_test_run_all(SecurityTestSummary* summary) {

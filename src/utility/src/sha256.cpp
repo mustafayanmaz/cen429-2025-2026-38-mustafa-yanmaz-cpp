@@ -1,6 +1,12 @@
+/**
+ * @file sha256.cpp
+ * @brief SHA-256 and HMAC-SHA256 implementation
+ */
+
 #include "sha256.h"
 #include <string.h>
 
+/** @brief SHA-256 round constants */
 static const uint32_t K[64] = {
   0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
   0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
@@ -12,14 +18,26 @@ static const uint32_t K[64] = {
   0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
 };
 
+/** @brief Rotate right operation */
 static uint32_t rotr(uint32_t x, uint32_t n){ return (x>>n)|(x<<(32-n)); }
+/** @brief SHA-256 Ch function */
 static uint32_t ch(uint32_t x,uint32_t y,uint32_t z){ return (x & y) ^ (~x & z); }
+/** @brief SHA-256 Maj function */
 static uint32_t maj(uint32_t x,uint32_t y,uint32_t z){ return (x & y) ^ (x & z) ^ (y & z); }
+/** @brief SHA-256 big sigma 0 function */
 static uint32_t bsig0(uint32_t x){ return rotr(x,2)^rotr(x,13)^rotr(x,22); }
+/** @brief SHA-256 big sigma 1 function */
 static uint32_t bsig1(uint32_t x){ return rotr(x,6)^rotr(x,11)^rotr(x,25); }
+/** @brief SHA-256 small sigma 0 function */
 static uint32_t ssig0(uint32_t x){ return rotr(x,7)^rotr(x,18)^(x>>3); }
+/** @brief SHA-256 small sigma 1 function */
 static uint32_t ssig1(uint32_t x){ return rotr(x,17)^rotr(x,19)^(x>>10); }
 
+/**
+ * @brief Transform a 64-byte block
+ * @param ctx SHA-256 context
+ * @param block 64-byte input block to process
+ */
 static void transform(sha256_ctx* ctx, const uint8_t block[64]){
   uint32_t w[64];
   for(int i=0;i<16;i++){

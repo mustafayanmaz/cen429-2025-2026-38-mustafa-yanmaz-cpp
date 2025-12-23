@@ -22,19 +22,33 @@
 
 // Prevent compiler optimization from removing secure wipe operations
 #if defined(__GNUC__)
+/**
+ * @brief Attribute to disable optimization for security-critical functions.
+ */
 #define SECURE_NO_OPTIMIZE __attribute__((optimize("O0")))
 #else
+/**
+ * @brief No-op macro for compilers without explicit optimization control.
+ */
 #define SECURE_NO_OPTIMIZE
 #endif
 
 /**
- * @brief Volatile pointer write to prevent compiler optimization
+ * @brief Function pointer type matching memset, used with a volatile wrapper.
+ * @param Pointer to destination buffer, fill value, and size (see memset).
  */
 typedef void* (*memset_t)(void*, int, size_t);
+
+/**
+ * @brief Volatile memset function pointer to prevent the compiler from
+ *        optimizing away the final wipe.
+ */
 static volatile memset_t memset_func = memset;
 
 /**
- * @brief Securely wipes memory by overwriting it multiple times
+ * @brief Securely wipes memory by overwriting it multiple times.
+ * @param ptr Pointer to the memory region to wipe.
+ * @param size Size of the memory region in bytes.
  */
 #if defined(_MSC_VER)
 #pragma optimize("", off)

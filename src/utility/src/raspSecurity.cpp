@@ -47,9 +47,16 @@ typedef NTSTATUS (WINAPI *pNtQuerySystemInformation)(
 // GLOBAL STATE
 // ============================================================================
 
+/** @brief Current RASP configuration used by the security module. */
 static RASPConfig g_rasp_config = {0};
+
+/** @brief Flag indicating whether the RASP system has been initialized. */
 static int g_rasp_initialized = 0;
+
+/** @brief Global array of Control Flow Integrity (CFI) counters. */
 static CFICounter g_cfi_counters[RASP_MAX_CFI_COUNTERS] = {0};
+
+/** @brief Number of active CFI counters currently in use. */
 static size_t g_cfi_counter_count = 0;
 
 // ============================================================================

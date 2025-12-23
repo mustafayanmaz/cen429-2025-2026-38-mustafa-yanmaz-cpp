@@ -26,21 +26,21 @@ extern "C" {
  * @brief Test result status
  */
 typedef enum SecurityTestStatus {
-    SEC_TEST_PASS = 0,
-    SEC_TEST_FAIL = 1,
-    SEC_TEST_SKIP = 2,
-    SEC_TEST_ERROR = 3
+    SEC_TEST_PASS = 0,   /**< Test passed successfully */
+    SEC_TEST_FAIL = 1,   /**< Test failed */
+    SEC_TEST_SKIP = 2,   /**< Test was skipped */
+    SEC_TEST_ERROR = 3   /**< Test encountered an error */
 } SecurityTestStatus;
 
 /**
  * @brief Test severity level
  */
 typedef enum SecurityTestSeverity {
-    SEC_SEVERITY_CRITICAL = 0,
-    SEC_SEVERITY_HIGH = 1,
-    SEC_SEVERITY_MEDIUM = 2,
-    SEC_SEVERITY_LOW = 3,
-    SEC_SEVERITY_INFO = 4
+    SEC_SEVERITY_CRITICAL = 0,  /**< Critical severity - immediate action required */
+    SEC_SEVERITY_HIGH = 1,      /**< High severity - important security issue */
+    SEC_SEVERITY_MEDIUM = 2,    /**< Medium severity - moderate risk */
+    SEC_SEVERITY_LOW = 3,       /**< Low severity - minor issue */
+    SEC_SEVERITY_INFO = 4       /**< Informational - no security impact */
 } SecurityTestSeverity;
 
 /**
@@ -59,13 +59,13 @@ typedef struct SecurityTestResult {
  * @brief Test suite summary
  */
 typedef struct SecurityTestSummary {
-    int total_tests;
-    int passed;
-    int failed;
-    int skipped;
-    int errors;
-    uint64_t total_duration_ms;
-    char report_path[256];
+    int total_tests;            /**< Total number of tests executed */
+    int passed;                 /**< Number of tests that passed */
+    int failed;                 /**< Number of tests that failed */
+    int skipped;                /**< Number of tests that were skipped */
+    int errors;                 /**< Number of tests that encountered errors */
+    uint64_t total_duration_ms; /**< Total execution time in milliseconds */
+    char report_path[256];      /**< Path to the generated report file */
 } SecurityTestSummary;
 
 // ============================================================================
@@ -128,32 +128,134 @@ int security_test_run_single(const char* test_id, SecurityTestResult* result);
 // ============================================================================
 
 // Authentication Tests
+
+/**
+ * @brief Test brute force attack protection
+ * @param result Output test result structure
+ * @return 0 if test passed, 1 if failed
+ */
 int sec_test_auth_brute_force(SecurityTestResult* result);
+
+/**
+ * @brief Test password storage security
+ * @param result Output test result structure
+ * @return 0 if test passed, 1 if failed
+ */
 int sec_test_auth_password_storage(SecurityTestResult* result);
+
+/**
+ * @brief Test session hijacking protection
+ * @param result Output test result structure
+ * @return 0 if test passed, 1 if failed
+ */
 int sec_test_auth_session_hijacking(SecurityTestResult* result);
 
 // Cryptography Tests
+
+/**
+ * @brief Test whitebox AES key protection
+ * @param result Output test result structure
+ * @return 0 if test passed, 1 if failed
+ */
 int sec_test_crypto_whitebox_key(SecurityTestResult* result);
+
+/**
+ * @brief Test HMAC integrity bypass prevention
+ * @param result Output test result structure
+ * @return 0 if test passed, 1 if failed
+ */
 int sec_test_crypto_hmac_bypass(SecurityTestResult* result);
+
+/**
+ * @brief Test cascade encryption mechanism
+ * @param result Output test result structure
+ * @return 0 if test passed, 1 if failed
+ */
 int sec_test_crypto_cascade(SecurityTestResult* result);
 
 // RASP Tests
+
+/**
+ * @brief Test debugger detection mechanism
+ * @param result Output test result structure
+ * @return 0 if test passed, 1 if failed
+ */
 int sec_test_rasp_debugger(SecurityTestResult* result);
+
+/**
+ * @brief Test code tampering detection
+ * @param result Output test result structure
+ * @return 0 if test passed, 1 if failed
+ */
 int sec_test_rasp_tampering(SecurityTestResult* result);
+
+/**
+ * @brief Test inline hook detection
+ * @param result Output test result structure
+ * @return 0 if test passed, 1 if failed
+ */
 int sec_test_rasp_hooks(SecurityTestResult* result);
+
+/**
+ * @brief Test control flow integrity mechanism
+ * @param result Output test result structure
+ * @return 0 if test passed, 1 if failed
+ */
 int sec_test_rasp_cfi(SecurityTestResult* result);
 
 // Memory Security Tests
+
+/**
+ * @brief Test buffer overflow protection
+ * @param result Output test result structure
+ * @return 0 if test passed, 1 if failed
+ */
 int sec_test_mem_buffer_overflow(SecurityTestResult* result);
+
+/**
+ * @brief Test sensitive data residue wiping
+ * @param result Output test result structure
+ * @return 0 if test passed, 1 if failed
+ */
 int sec_test_mem_sensitive_residue(SecurityTestResult* result);
+
+/**
+ * @brief Test memory disclosure prevention
+ * @param result Output test result structure
+ * @return 0 if test passed, 1 if failed
+ */
 int sec_test_mem_disclosure(SecurityTestResult* result);
 
 // Database Tests
+
+/**
+ * @brief Test SQL injection protection
+ * @param result Output test result structure
+ * @return 0 if test passed, 1 if failed
+ */
 int sec_test_db_sql_injection(SecurityTestResult* result);
+
+/**
+ * @brief Test database encryption
+ * @param result Output test result structure
+ * @return 0 if test passed, 1 if failed
+ */
 int sec_test_db_encryption(SecurityTestResult* result);
 
 // Obfuscation Tests
+
+/**
+ * @brief Test string extraction prevention
+ * @param result Output test result structure
+ * @return 0 if test passed, 1 if failed
+ */
 int sec_test_obf_string_extraction(SecurityTestResult* result);
+
+/**
+ * @brief Test control flow obfuscation
+ * @param result Output test result structure
+ * @return 0 if test passed, 1 if failed
+ */
 int sec_test_obf_control_flow(SecurityTestResult* result);
 
 // ============================================================================
@@ -164,12 +266,12 @@ int sec_test_obf_control_flow(SecurityTestResult* result);
  * @brief OWASP ASVS compliance result
  */
 typedef struct ASVSComplianceResult {
-    int level;              /**< ASVS level (1, 2, or 3) */
-    int total_requirements;
-    int met_requirements;
-    int not_applicable;
-    float compliance_percentage;
-    char details[1024];
+    int level;                    /**< ASVS level (1, 2, or 3) */
+    int total_requirements;       /**< Total number of requirements for the level */
+    int met_requirements;         /**< Number of requirements that are met */
+    int not_applicable;           /**< Number of requirements not applicable */
+    float compliance_percentage;  /**< Calculated compliance percentage (0-100) */
+    char details[1024];           /**< Detailed compliance report message */
 } ASVSComplianceResult;
 
 /**
@@ -184,10 +286,10 @@ float security_check_asvs_compliance(int level, ASVSComplianceResult* result);
  * @brief ETSI compliance result
  */
 typedef struct ETSIComplianceResult {
-    int total_provisions;
-    int met_provisions;
-    int not_applicable;
-    float compliance_percentage;
+    int total_provisions;         /**< Total number of ETSI provisions */
+    int met_provisions;           /**< Number of provisions that are met */
+    int not_applicable;           /**< Number of provisions not applicable */
+    float compliance_percentage;  /**< Calculated compliance percentage (0-100) */
 } ETSIComplianceResult;
 
 /**

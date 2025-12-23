@@ -60,12 +60,12 @@ extern "C" {
 #define WB_FILE_VERSION 0x0001
 
 /**
- * @brief Encryption layer types
+ * @brief Encryption layer types.
  */
 typedef enum {
-    WB_LAYER_AES = 0x01,
-    WB_LAYER_DES = 0x02,
-    WB_LAYER_CASCADE = 0x03
+    WB_LAYER_AES = 0x01,      /**< Single-layer AES encryption. */
+    WB_LAYER_DES = 0x02,      /**< Single-layer DES encryption (simplified). */
+    WB_LAYER_CASCADE = 0x03   /**< Cascaded AES–DES–AES encryption. */
 } WB_EncryptionLayer;
 
 /**
