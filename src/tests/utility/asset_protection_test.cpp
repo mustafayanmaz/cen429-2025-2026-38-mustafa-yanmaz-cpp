@@ -16,10 +16,18 @@ extern "C" {
  */
 class AssetProtectionTest : public ::testing::Test {
 protected:
+    /**
+     * @brief Sets up the test fixture
+     * Prepares test environment for asset protection operations
+     */
     void SetUp() override {
         // Setup code if needed
     }
 
+    /**
+     * @brief Tears down the test fixture
+     * Cleans up after asset protection tests
+     */
     void TearDown() override {
         // Cleanup code if needed
     }

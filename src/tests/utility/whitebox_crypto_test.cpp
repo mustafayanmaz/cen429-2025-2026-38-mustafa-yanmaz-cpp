@@ -17,10 +17,18 @@ extern "C" {
  */
 class WhiteboxCryptoTest : public ::testing::Test {
 protected:
+    /**
+     * @brief Sets up the test fixture
+     * Prepares environment for test file operations
+     */
     void SetUp() override {
         // Setup test files
     }
 
+    /**
+     * @brief Tears down the test fixture
+     * Cleans up all test files created during testing
+     */
     void TearDown() override {
         // Cleanup test files
         remove("test_plain.txt");
@@ -368,6 +376,9 @@ TEST_F(WhiteboxCryptoTest, File_IntegrityVerificationTest) {
     EXPECT_NE(valid, 1);
 }
 
+/**
+ * @brief Test decryption fails when HMAC is tampered with
+ */
 TEST_F(WhiteboxCryptoTest, DecryptFailsOnTamperedHmac) {
     const char* password = "P@ssw0rd!";
     // Prepare plain file

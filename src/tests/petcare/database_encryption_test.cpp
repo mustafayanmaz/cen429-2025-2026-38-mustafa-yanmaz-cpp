@@ -17,9 +17,15 @@ extern "C" {
  */
 class DatabaseEncryptionTest : public ::testing::Test {
 protected:
+    /** @brief Path to the test database file */
     const char* test_db_path = "test_encryption.db";
+    /** @brief Database handle for test operations */
     Database* db = nullptr;
     
+    /**
+     * @brief Sets up the test fixture
+     * Cleans up any existing test database files before each test
+     */
     void SetUp() override {
         // Clean up any existing test database files
         remove(test_db_path);
@@ -27,6 +33,10 @@ protected:
         remove("test_encryption.db-journal");
     }
     
+    /**
+     * @brief Tears down the test fixture
+     * Closes database and removes all test database files
+     */
     void TearDown() override {
         // Clean up test database
         if (db) {
@@ -374,6 +384,12 @@ TEST_F(DatabaseEncryptionTest, SecureWipeVerification) {
 }
 
 // Run all tests
+/**
+ * @brief Main entry point for running all database encryption tests
+ * @param argc Number of command line arguments
+ * @param argv Array of command line argument strings
+ * @return Test execution result (0 for success, non-zero for failure)
+ */
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

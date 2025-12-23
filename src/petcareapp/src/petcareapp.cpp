@@ -24,12 +24,37 @@
 #include "codeObfuscation.h"
 
 extern "C" {
+/**
+ * @brief Load feeding schedules from the database into a queue.
+ * @param db Pointer to the opened database instance.
+ * @param queue Target queue to receive feeding schedules.
+ * @return 0 on success, non-zero on failure.
+ */
 int db_load_feeding_schedules(struct Database* db, struct Queue* queue);
+
+/**
+ * @brief Load medicine schedules from the database into a queue.
+ * @param db Pointer to the opened database instance.
+ * @param queue Target queue to receive medicine schedules.
+ * @return 0 on success, non-zero on failure.
+ */
 int db_load_medicine_schedules(struct Database* db, struct Queue* queue);
+
+/**
+ * @brief Load exercise routines for a given owner from the database.
+ * @param db Pointer to the opened database instance.
+ * @param owner Owner name whose exercise routines will be loaded.
+ * @return 0 on success, non-zero on failure.
+ */
 int db_load_exercise_routines(struct Database* db, const char* owner);
 }
 
-// Simple safe integer input helper
+/**
+ * @brief Simple safe integer input helper for CLI menus.
+ * @param prompt Message printed before reading the value.
+ * @param out Pointer where the parsed integer will be stored.
+ * @return 1 on successful parse, 0 on error (should not normally occur).
+ */
 static int readInt(const char* prompt, int* out) {
     char buf[128];
     while (1) {
@@ -96,9 +121,11 @@ typedef struct Menu {
 char activeUser[50] = "";
 
 /**
- * @brief Global RASP configuration
+ * @brief Global RASP configuration.
  */
 static RASPConfig g_raspConfig;
+
+/** @brief Flag indicating whether the RASP system in the app has been initialized. */
 static int g_rasp_initialized = 0;
 
 /**
@@ -141,9 +168,11 @@ static uint64_t rasp_get_cfi_counter_value(uint64_t counter_id) {
 }
 
 /**
- * @brief Application checksum for self-integrity verification
+ * @brief Application checksum for self-integrity verification.
  */
 static CodeBlockChecksum g_app_checksum;
+
+/** @brief Flag indicating whether the application checksum has been initialized. */
 static int g_checksum_initialized = 0;
 
 /**
@@ -273,6 +302,11 @@ static int get_kdf_iterations_app() {
     return (int)v;
 }
 
+/**
+ * @brief Derive a hex-encoded database key bound to the device and app integrity.
+ * @param out_hex Output buffer that will receive a 64-character hex key plus NUL.
+ * @param out_len Length of the output buffer in bytes (must be at least 65).
+ */
 static void derive_database_key(char* out_hex, size_t out_len) {
     if (!out_hex || out_len < 65) return;
     DeviceFingerprint fp; memset(&fp, 0, sizeof(fp));

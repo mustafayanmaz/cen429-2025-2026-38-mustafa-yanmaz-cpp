@@ -15,10 +15,18 @@ extern "C" {
  */
 class SecureMemoryTest : public ::testing::Test {
 protected:
+    /**
+     * @brief Sets up the test fixture
+     * Prepares test environment for secure memory operations
+     */
     void SetUp() override {
         // Setup code if needed
     }
 
+    /**
+     * @brief Tears down the test fixture
+     * Cleans up after secure memory tests
+     */
     void TearDown() override {
         // Cleanup code if needed
     }

@@ -18,6 +18,10 @@
  */
 class CodeObfuscationTest : public ::testing::Test {
 protected:
+    /**
+     * @brief Sets up the test fixture
+     * Initializes the code obfuscation system
+     */
     void SetUp() override {
         obf_init();
     }
@@ -27,26 +31,41 @@ protected:
 // ARITHMETIC OBFUSCATION TESTS
 // ============================================================================
 
+/**
+ * @brief Test obfuscated multiplication with constant zero
+ */
 TEST_F(CodeObfuscationTest, ObfMulConstZero) {
     int result = obf_mul_const(5, 0);
     EXPECT_EQ(result, 0);
 }
 
+/**
+ * @brief Test obfuscated multiplication with constant one
+ */
 TEST_F(CodeObfuscationTest, ObfMulConstOne) {
     int result = obf_mul_const(7, 1);
     EXPECT_EQ(result, 7);
 }
 
+/**
+ * @brief Test obfuscated multiplication with positive numbers
+ */
 TEST_F(CodeObfuscationTest, ObfMulConstPositive) {
     int result = obf_mul_const(3, 4);
     EXPECT_EQ(result, 12);
 }
 
+/**
+ * @brief Test obfuscated multiplication with large numbers
+ */
 TEST_F(CodeObfuscationTest, ObfMulConstLargeNumbers) {
     int result = obf_mul_const(100, 10);
     EXPECT_EQ(result, 1000);
 }
 
+/**
+ * @brief Test obfuscated multiplication with power of two
+ */
 TEST_F(CodeObfuscationTest, ObfMulConstPowerOfTwo) {
     int result = obf_mul_const(5, 8);
     EXPECT_EQ(result, 40);
@@ -56,6 +75,9 @@ TEST_F(CodeObfuscationTest, ObfMulConstPowerOfTwo) {
 // PARAMETER ENCODING TESTS
 // ============================================================================
 
+/**
+ * @brief Test basic parameter encoding functionality
+ */
 TEST_F(CodeObfuscationTest, EncodeParamBasic) {
     uint32_t param = 12345;
     uint32_t seed = 0xABCD1234;
@@ -66,6 +88,9 @@ TEST_F(CodeObfuscationTest, EncodeParamBasic) {
     EXPECT_NE(encoded, param);
 }
 
+/**
+ * @brief Test parameter encoding with zero value
+ */
 TEST_F(CodeObfuscationTest, EncodeParamZero) {
     uint32_t param = 0;
     uint32_t seed = 0x12345678;
@@ -76,6 +101,9 @@ TEST_F(CodeObfuscationTest, EncodeParamZero) {
     EXPECT_NE(encoded, 0u);
 }
 
+/**
+ * @brief Test parameter encoding with different seeds produces different results
+ */
 TEST_F(CodeObfuscationTest, EncodeParamDifferentSeeds) {
     uint32_t param = 100;
     
@@ -86,6 +114,9 @@ TEST_F(CodeObfuscationTest, EncodeParamDifferentSeeds) {
     EXPECT_NE(encoded1, encoded2);
 }
 
+/**
+ * @brief Test parameter encoding with maximum 32-bit value
+ */
 TEST_F(CodeObfuscationTest, EncodeParamMaxValue) {
     uint32_t param = 0xFFFFFFFF;
     uint32_t seed = 0x12345678;
@@ -99,6 +130,9 @@ TEST_F(CodeObfuscationTest, EncodeParamMaxValue) {
 // OBFUSCATED STRING OPERATIONS TESTS
 // ============================================================================
 
+/**
+ * @brief Test basic obfuscated string copy
+ */
 TEST_F(CodeObfuscationTest, ObfStrcpyBasic) {
     const char* src = "Hello World";
     char dest[32] = {0};
@@ -108,6 +142,9 @@ TEST_F(CodeObfuscationTest, ObfStrcpyBasic) {
     EXPECT_STREQ(dest, src);
 }
 
+/**
+ * @brief Test obfuscated string copy with empty string
+ */
 TEST_F(CodeObfuscationTest, ObfStrcpyEmptyString) {
     const char* src = "";
     char dest[32] = "garbage";
@@ -117,6 +154,9 @@ TEST_F(CodeObfuscationTest, ObfStrcpyEmptyString) {
     EXPECT_STREQ(dest, "");
 }
 
+/**
+ * @brief Test obfuscated string copy with long string
+ */
 TEST_F(CodeObfuscationTest, ObfStrcpyLongString) {
     const char* src = "This is a longer test string for obfuscated strcpy";
     char dest[64] = {0};
@@ -126,6 +166,9 @@ TEST_F(CodeObfuscationTest, ObfStrcpyLongString) {
     EXPECT_STREQ(dest, src);
 }
 
+/**
+ * @brief Test basic obfuscated memory copy
+ */
 TEST_F(CodeObfuscationTest, ObfMemcpyBasic) {
     const char* src = "Test data for memcpy";
     char dest[32] = {0};
@@ -135,6 +178,9 @@ TEST_F(CodeObfuscationTest, ObfMemcpyBasic) {
     EXPECT_STREQ(dest, src);
 }
 
+/**
+ * @brief Test obfuscated memory copy with binary data
+ */
 TEST_F(CodeObfuscationTest, ObfMemcpyBinaryData) {
     uint8_t src[16] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
                        0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
@@ -145,6 +191,9 @@ TEST_F(CodeObfuscationTest, ObfMemcpyBinaryData) {
     EXPECT_EQ(memcmp(dest, src, 16), 0);
 }
 
+/**
+ * @brief Test obfuscated memory copy with partial data
+ */
 TEST_F(CodeObfuscationTest, ObfMemcpyPartial) {
     const char* src = "Full string content";
     char dest[32] = {0};
@@ -155,6 +204,9 @@ TEST_F(CodeObfuscationTest, ObfMemcpyPartial) {
     EXPECT_STREQ(dest, "Full");
 }
 
+/**
+ * @brief Test basic obfuscated string length calculation
+ */
 TEST_F(CodeObfuscationTest, ObfStrlenBasic) {
     const char* str = "Hello";
     
@@ -163,6 +215,9 @@ TEST_F(CodeObfuscationTest, ObfStrlenBasic) {
     EXPECT_EQ(len, 5u);
 }
 
+/**
+ * @brief Test obfuscated string length with empty string
+ */
 TEST_F(CodeObfuscationTest, ObfStrlenEmptyString) {
     const char* str = "";
     
@@ -171,6 +226,9 @@ TEST_F(CodeObfuscationTest, ObfStrlenEmptyString) {
     EXPECT_EQ(len, 0u);
 }
 
+/**
+ * @brief Test obfuscated string length with long string
+ */
 TEST_F(CodeObfuscationTest, ObfStrlenLongString) {
     const char* str = "This is a much longer string to test the obfuscated strlen function";
     
@@ -179,6 +237,9 @@ TEST_F(CodeObfuscationTest, ObfStrlenLongString) {
     EXPECT_EQ(len, strlen(str));
 }
 
+/**
+ * @brief Test basic obfuscated memory set
+ */
 TEST_F(CodeObfuscationTest, ObfMemsetBasic) {
     char buffer[16];
     
@@ -189,6 +250,9 @@ TEST_F(CodeObfuscationTest, ObfMemsetBasic) {
     }
 }
 
+/**
+ * @brief Test obfuscated memory set with zero value
+ */
 TEST_F(CodeObfuscationTest, ObfMemsetZero) {
     char buffer[16] = "Initial content";
     
@@ -199,6 +263,9 @@ TEST_F(CodeObfuscationTest, ObfMemsetZero) {
     }
 }
 
+/**
+ * @brief Test obfuscated memory set with partial buffer
+ */
 TEST_F(CodeObfuscationTest, ObfMemsetPartial) {
     char buffer[16] = {0};
     
@@ -216,6 +283,9 @@ TEST_F(CodeObfuscationTest, ObfMemsetPartial) {
 // INTEGRATION TESTS
 // ============================================================================
 
+/**
+ * @brief Test chain of obfuscated arithmetic operations
+ */
 TEST_F(CodeObfuscationTest, ObfuscatedOperationsChain) {
     // Test a chain of obfuscated operations
     int a = 10, b = 5;
@@ -229,6 +299,9 @@ TEST_F(CodeObfuscationTest, ObfuscatedOperationsChain) {
     EXPECT_EQ(product, 30);
 }
 
+/**
+ * @brief Test chain of obfuscated string operations
+ */
 TEST_F(CodeObfuscationTest, StringOperationsChain) {
     const char* original = "Test String";
     char buffer1[32] = {0};

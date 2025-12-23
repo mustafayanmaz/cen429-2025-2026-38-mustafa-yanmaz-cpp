@@ -17,8 +17,13 @@ extern "C" {
  */
 class RASPSecurityTest : public ::testing::Test {
 protected:
+    /** @brief RASP configuration structure for test setup */
     RASPConfig config;
     
+    /**
+     * @brief Sets up the test fixture
+     * Initializes RASP configuration with all security features enabled
+     */
     void SetUp() override {
         // Setup RASP configuration
         memset(&config, 0, sizeof(RASPConfig));
@@ -34,6 +39,10 @@ protected:
         config.log_callback = nullptr;
     }
 
+    /**
+     * @brief Tears down the test fixture
+     * Shuts down RASP security system
+     */
     void TearDown() override {
         rasp_shutdown();
     }
@@ -127,6 +136,9 @@ TEST_F(RASPSecurityTest, ChecksumDifferentSizes) {
     EXPECT_EQ(rasp_verify_checksum(&large_checksum), RASP_SUCCESS);
 }
 
+/**
+ * @brief Test checksum calculation with valid input parameters
+ */
 TEST_F(RASPSecurityTest, CalculateChecksumValidInput) {
     const char* code = "This is a test code block for checksum calculation";
     CodeBlockChecksum checksum;
@@ -140,6 +152,9 @@ TEST_F(RASPSecurityTest, CalculateChecksumValidInput) {
     EXPECT_EQ(checksum.verification_count, 1u);
 }
 
+/**
+ * @brief Test checksum calculation with null pointer parameter
+ */
 TEST_F(RASPSecurityTest, CalculateChecksumNullPointer) {
     CodeBlockChecksum checksum;
     
@@ -147,6 +162,9 @@ TEST_F(RASPSecurityTest, CalculateChecksumNullPointer) {
     EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
 }
 
+/**
+ * @brief Test checksum calculation with zero size parameter
+ */
 TEST_F(RASPSecurityTest, CalculateChecksumZeroSize) {
     const char* code = "test";
     CodeBlockChecksum checksum;
@@ -155,6 +173,9 @@ TEST_F(RASPSecurityTest, CalculateChecksumZeroSize) {
     EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
 }
 
+/**
+ * @brief Test checksum verification with valid checksum
+ */
 TEST_F(RASPSecurityTest, VerifyChecksumValid) {
     const char* code = "Test code for verification";
     CodeBlockChecksum checksum;
@@ -165,6 +186,9 @@ TEST_F(RASPSecurityTest, VerifyChecksumValid) {
     EXPECT_EQ(result, RASP_SUCCESS);
 }
 
+/**
+ * @brief Test checksum verification with modified code detects tampering
+ */
 TEST_F(RASPSecurityTest, VerifyChecksumModified) {
     char code[128] = "Original code for tamper detection";
     CodeBlockChecksum checksum;
@@ -178,6 +202,9 @@ TEST_F(RASPSecurityTest, VerifyChecksumModified) {
     EXPECT_EQ(result, RASP_ERROR_CHECKSUM_FAIL);
 }
 
+/**
+ * @brief Test checksum monitoring with callback function
+ */
 TEST_F(RASPSecurityTest, MonitorChecksumCallback) {
     const char* code = "Monitored code block";
     CodeBlockChecksum checksum;
@@ -197,6 +224,9 @@ TEST_F(RASPSecurityTest, MonitorChecksumCallback) {
 // APPLICATION HASH AND SIGNATURE TESTS
 // ============================================================================
 
+/**
+ * @brief Test application hash calculation with valid path
+ */
 TEST_F(RASPSecurityTest, CalculateAppHashValidPath) {
     uint8_t hash[RASP_HASH_SIZE];
     
@@ -210,6 +240,9 @@ TEST_F(RASPSecurityTest, CalculateAppHashValidPath) {
     }
 }
 
+/**
+ * @brief Test application hash calculation with invalid path
+ */
 TEST_F(RASPSecurityTest, CalculateAppHashInvalidPath) {
     uint8_t hash[RASP_HASH_SIZE];
     
@@ -217,11 +250,17 @@ TEST_F(RASPSecurityTest, CalculateAppHashInvalidPath) {
     EXPECT_EQ(result, RASP_ERROR_FILE_ACCESS);
 }
 
+/**
+ * @brief Test application hash calculation with null pointer
+ */
 TEST_F(RASPSecurityTest, CalculateAppHashNullPointer) {
     int result = rasp_calculate_app_hash(nullptr, nullptr);
     EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
 }
 
+/**
+ * @brief Test retrieving verified application path
+ */
 TEST_F(RASPSecurityTest, GetVerifiedAppPath) {
     char app_path[RASP_MAX_PATH];
     
@@ -233,6 +272,9 @@ TEST_F(RASPSecurityTest, GetVerifiedAppPath) {
     }
 }
 
+/**
+ * @brief Test creating application signature with private key
+ */
 TEST_F(RASPSecurityTest, CreateAppSignature) {
     AppSignature signature;
     uint8_t private_key[RASP_SIGNATURE_SIZE] = {0};
@@ -246,6 +288,9 @@ TEST_F(RASPSecurityTest, CreateAppSignature) {
     }
 }
 
+/**
+ * @brief Test verifying application signature
+ */
 TEST_F(RASPSecurityTest, VerifyAppSignature) {
     AppSignature signature;
     memset(&signature, 0, sizeof(AppSignature));
@@ -266,16 +311,25 @@ TEST_F(RASPSecurityTest, VerifyAppSignature) {
 // DEVICE TRUST TESTS
 // ============================================================================
 
+/**
+ * @brief Test root detection functionality
+ */
 TEST_F(RASPSecurityTest, DetectRoot) {
     int result = rasp_detect_root();
     EXPECT_TRUE(result == 0 || result == 1);
 }
 
+/**
+ * @brief Test emulator detection functionality
+ */
 TEST_F(RASPSecurityTest, DetectEmulator) {
     int result = rasp_detect_emulator();
     EXPECT_TRUE(result == 0 || result == 1);
 }
 
+/**
+ * @brief Test system file verification with valid paths
+ */
 TEST_F(RASPSecurityTest, VerifySystemFilesValid) {
 #ifdef _WIN32
     const char* system_files[] = {
@@ -293,6 +347,9 @@ TEST_F(RASPSecurityTest, VerifySystemFilesValid) {
     EXPECT_TRUE(result == RASP_SUCCESS || result == RASP_ERROR_UNTRUSTED_DEVICE);
 }
 
+/**
+ * @brief Test system file verification with invalid paths
+ */
 TEST_F(RASPSecurityTest, VerifySystemFilesInvalid) {
     const char* nonexistent_files[] = {
         "/nonexistent/file1",
@@ -303,6 +360,9 @@ TEST_F(RASPSecurityTest, VerifySystemFilesInvalid) {
     EXPECT_EQ(result, RASP_ERROR_UNTRUSTED_DEVICE);
 }
 
+/**
+ * @brief Test device trust assessment with trust score validation
+ */
 TEST_F(RASPSecurityTest, AssessDeviceTrust) {
     DeviceTrust trust;
     
@@ -312,6 +372,9 @@ TEST_F(RASPSecurityTest, AssessDeviceTrust) {
     EXPECT_LE(trust.trust_score, 100);
 }
 
+/**
+ * @brief Test malicious application detection
+ */
 TEST_F(RASPSecurityTest, DetectMaliciousApps) {
     char* process_list[10];
     
@@ -323,6 +386,9 @@ TEST_F(RASPSecurityTest, DetectMaliciousApps) {
 // HOOK DETECTION TESTS
 // ============================================================================
 
+/**
+ * @brief Test inline hook detection when no hook is present
+ */
 TEST_F(RASPSecurityTest, DetectInlineHookNoHook) {
     uint8_t original_bytes[16] = {0x48, 0x89, 0x5C, 0x24, 0x08, 0x57, 0x48, 0x83,
                                   0xEC, 0x20, 0x48, 0x8B, 0xDA, 0x48, 0x8B, 0xF9};
@@ -332,6 +398,9 @@ TEST_F(RASPSecurityTest, DetectInlineHookNoHook) {
     EXPECT_EQ(result, RASP_SUCCESS);
 }
 
+/**
+ * @brief Test inline hook detection with JMP instruction hook
+ */
 TEST_F(RASPSecurityTest, DetectInlineHookWithJMP) {
     uint8_t function_bytes[16] = {0xE9, 0x00, 0x00, 0x00, 0x00, 0x90, 0x90, 0x90,
                                   0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90};
@@ -342,6 +411,9 @@ TEST_F(RASPSecurityTest, DetectInlineHookWithJMP) {
     EXPECT_EQ(result, RASP_ERROR_HOOK_DETECTED);
 }
 
+/**
+ * @brief Test inline hook detection with PUSH/RET instruction hook
+ */
 TEST_F(RASPSecurityTest, DetectInlineHookWithPushRet) {
     uint8_t function_bytes[16] = {0x68, 0x00, 0x00, 0x00, 0x00, 0xC3, 0x90, 0x90,
                                   0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90};
@@ -352,6 +424,9 @@ TEST_F(RASPSecurityTest, DetectInlineHookWithPushRet) {
     EXPECT_EQ(result, RASP_ERROR_HOOK_DETECTED);
 }
 
+/**
+ * @brief Test IAT (Import Address Table) hook detection on Windows
+ */
 TEST_F(RASPSecurityTest, DetectIATHooks) {
 #ifdef _WIN32
     int result = rasp_detect_iat_hooks("kernel32.dll");
@@ -361,6 +436,9 @@ TEST_F(RASPSecurityTest, DetectIATHooks) {
 #endif
 }
 
+/**
+ * @brief Test scanning for all hooks in the application
+ */
 TEST_F(RASPSecurityTest, ScanAllHooks) {
     HookInfo hooks[RASP_MAX_HOOKS];
     
@@ -445,6 +523,9 @@ TEST_F(RASPSecurityTest, HookDetectionWithLogging) {
     }
 }
 
+/**
+ * @brief Test function protection registration with callback
+ */
 TEST_F(RASPSecurityTest, ProtectFunction) {
     uint8_t original_bytes[16] = {0x48, 0x89, 0x5C, 0x24, 0x08, 0x57, 0x48, 0x83,
                                   0xEC, 0x20, 0x48, 0x8B, 0xDA, 0x48, 0x8B, 0xF9};
@@ -461,11 +542,17 @@ TEST_F(RASPSecurityTest, ProtectFunction) {
 // DEBUGGER DETECTION TESTS
 // ============================================================================
 
+/**
+ * @brief Test if debugger is present
+ */
 TEST_F(RASPSecurityTest, IsDebuggerPresent) {
     int result = rasp_is_debugger_present();
     EXPECT_TRUE(result == 0 || result == 1);
 }
 
+/**
+ * @brief Test debugger detection with detailed info structure
+ */
 TEST_F(RASPSecurityTest, DetectDebugger) {
     DebuggerInfo info;
     
@@ -475,17 +562,26 @@ TEST_F(RASPSecurityTest, DetectDebugger) {
     EXPECT_GT(info.detection_timestamp, 0u);
 }
 
+/**
+ * @brief Test preventing debugger attachment
+ */
 TEST_F(RASPSecurityTest, PreventDebuggerAttach) {
     int result = rasp_prevent_debugger_attach();
     EXPECT_EQ(result, RASP_SUCCESS);
 }
 
+/**
+ * @brief Test hardware breakpoint detection
+ */
 TEST_F(RASPSecurityTest, DetectHardwareBreakpoints) {
     int result = rasp_detect_hardware_breakpoints();
     EXPECT_GE(result, 0);
     EXPECT_LE(result, 4); // x86/x64 has max 4 hardware breakpoints
 }
 
+/**
+ * @brief Test software breakpoint detection with clean code
+ */
 TEST_F(RASPSecurityTest, DetectSoftwareBreakpoints) {
     uint8_t code_no_bp[16] = {0x48, 0x89, 0x5C, 0x24, 0x08, 0x57, 0x48, 0x83,
                                0xEC, 0x20, 0x48, 0x8B, 0xDA, 0x48, 0x8B, 0xF9};
@@ -494,6 +590,9 @@ TEST_F(RASPSecurityTest, DetectSoftwareBreakpoints) {
     EXPECT_EQ(result, 0);
 }
 
+/**
+ * @brief Test software breakpoint detection with INT3 instructions
+ */
 TEST_F(RASPSecurityTest, DetectSoftwareBreakpointsWithINT3) {
     uint8_t code_with_bp[16] = {0xCC, 0x89, 0x5C, 0x24, 0x08, 0x57, 0xCC, 0x83,
                                 0xEC, 0x20, 0x48, 0x8B, 0xDA, 0xCC, 0x8B, 0xF9};
@@ -502,11 +601,17 @@ TEST_F(RASPSecurityTest, DetectSoftwareBreakpointsWithINT3) {
     EXPECT_EQ(result, 3); // 3 INT3 instructions
 }
 
+/**
+ * @brief Test timing anomaly detection for anti-debugging
+ */
 TEST_F(RASPSecurityTest, DetectTimingAnomaly) {
     int result = rasp_detect_timing_anomaly();
     EXPECT_TRUE(result == 0 || result == 1);
 }
 
+/**
+ * @brief Test debugger monitoring setup
+ */
 TEST_F(RASPSecurityTest, MonitorDebugger) {
     int result = rasp_monitor_debugger(100, RASP_ACTION_LOG);
     EXPECT_EQ(result, RASP_SUCCESS);
@@ -516,6 +621,9 @@ TEST_F(RASPSecurityTest, MonitorDebugger) {
 // TAMPER DETECTION TESTS
 // ============================================================================
 
+/**
+ * @brief Test memory tamper detection when no tampering occurred
+ */
 TEST_F(RASPSecurityTest, DetectMemoryTamperNoTamper) {
     const char* data = "Protected memory region for testing";
     uint8_t hash[RASP_HASH_SIZE];
@@ -536,6 +644,9 @@ TEST_F(RASPSecurityTest, DetectMemoryTamperNoTamper) {
     EXPECT_EQ(result, RASP_SUCCESS);
 }
 
+/**
+ * @brief Test memory tamper detection when tampering occurred
+ */
 TEST_F(RASPSecurityTest, DetectMemoryTamperWithTamper) {
     char data[128] = "Protected memory that will be modified";
     uint8_t hash[RASP_HASH_SIZE];
@@ -558,6 +669,9 @@ TEST_F(RASPSecurityTest, DetectMemoryTamperWithTamper) {
     EXPECT_EQ(result, RASP_ERROR_TAMPER_DETECTED);
 }
 
+/**
+ * @brief Test tampering detection functionality
+ */
 TEST_F(RASPSecurityTest, DetectTampering) {
     TamperInfo info;
     
@@ -565,6 +679,9 @@ TEST_F(RASPSecurityTest, DetectTampering) {
     EXPECT_TRUE(result == RASP_SUCCESS || result == RASP_ERROR_TAMPER_DETECTED);
 }
 
+/**
+ * @brief Test responding to tamper with log action
+ */
 TEST_F(RASPSecurityTest, RespondToTamperLog) {
     TamperInfo info;
     memset(&info, 0, sizeof(info));
@@ -574,6 +691,9 @@ TEST_F(RASPSecurityTest, RespondToTamperLog) {
     EXPECT_EQ(result, RASP_SUCCESS);
 }
 
+/**
+ * @brief Test responding to tamper with block action
+ */
 TEST_F(RASPSecurityTest, RespondToTamperBlock) {
     TamperInfo info;
     memset(&info, 0, sizeof(info));
@@ -583,6 +703,9 @@ TEST_F(RASPSecurityTest, RespondToTamperBlock) {
     EXPECT_EQ(result, RASP_ERROR_TAMPER_DETECTED);
 }
 
+/**
+ * @brief Test data protection with checksum calculation
+ */
 TEST_F(RASPSecurityTest, ProtectData) {
     const char* data = "Data to protect with checksum";
     uint32_t checksum = 0;
@@ -592,6 +715,9 @@ TEST_F(RASPSecurityTest, ProtectData) {
     EXPECT_NE(checksum, 0u);
 }
 
+/**
+ * @brief Test verifying protected data that is valid
+ */
 TEST_F(RASPSecurityTest, VerifyProtectedDataValid) {
     const char* data = "Verified protected data";
     uint32_t checksum = 0;
@@ -602,6 +728,9 @@ TEST_F(RASPSecurityTest, VerifyProtectedDataValid) {
     EXPECT_EQ(result, RASP_SUCCESS);
 }
 
+/**
+ * @brief Test verifying protected data that has been tampered with
+ */
 TEST_F(RASPSecurityTest, VerifyProtectedDataTampered) {
     char data[128] = "Data that will be tampered";
     uint32_t checksum = 0;
@@ -619,11 +748,17 @@ TEST_F(RASPSecurityTest, VerifyProtectedDataTampered) {
 // CONTROL FLOW INTEGRITY TESTS
 // ============================================================================
 
+/**
+ * @brief Test CFI initialization
+ */
 TEST_F(RASPSecurityTest, InitCFI) {
     int result = rasp_init_cfi();
     EXPECT_EQ(result, RASP_SUCCESS);
 }
 
+/**
+ * @brief Test creating CFI counter
+ */
 TEST_F(RASPSecurityTest, CreateCFICounter) {
     rasp_init_cfi();
     
@@ -631,6 +766,9 @@ TEST_F(RASPSecurityTest, CreateCFICounter) {
     EXPECT_EQ(result, RASP_SUCCESS);
 }
 
+/**
+ * @brief Test incrementing CFI counter
+ */
 TEST_F(RASPSecurityTest, IncrementCFICounter) {
     rasp_init_cfi();
     rasp_create_cfi_counter(1, (void*)0x1000);
@@ -639,6 +777,9 @@ TEST_F(RASPSecurityTest, IncrementCFICounter) {
     EXPECT_EQ(result, RASP_SUCCESS);
 }
 
+/**
+ * @brief Test verifying CFI counter with valid expected value
+ */
 TEST_F(RASPSecurityTest, VerifyCFICounterValid) {
     rasp_init_cfi();
     rasp_create_cfi_counter(1, (void*)0x1000);
@@ -648,6 +789,9 @@ TEST_F(RASPSecurityTest, VerifyCFICounterValid) {
     EXPECT_EQ(result, RASP_SUCCESS);
 }
 
+/**
+ * @brief Test verifying CFI counter detects violation with wrong value
+ */
 TEST_F(RASPSecurityTest, VerifyCFICounterViolation) {
     rasp_init_cfi();
     rasp_create_cfi_counter(1, (void*)0x1000);
@@ -658,6 +802,9 @@ TEST_F(RASPSecurityTest, VerifyCFICounterViolation) {
     EXPECT_EQ(result, RASP_ERROR_CFI_VIOLATION);
 }
 
+/**
+ * @brief Test resetting CFI counter
+ */
 TEST_F(RASPSecurityTest, ResetCFICounter) {
     rasp_init_cfi();
     rasp_create_cfi_counter(1, (void*)0x1000);
@@ -671,6 +818,9 @@ TEST_F(RASPSecurityTest, ResetCFICounter) {
     EXPECT_EQ(result, RASP_SUCCESS);
 }
 
+/**
+ * @brief Test getting CFI statistics for a counter
+ */
 TEST_F(RASPSecurityTest, GetCFIStats) {
     rasp_init_cfi();
     rasp_create_cfi_counter(1, (void*)0x1000);
@@ -685,6 +835,9 @@ TEST_F(RASPSecurityTest, GetCFIStats) {
     EXPECT_EQ(counter.current_value, 2u);
 }
 
+/**
+ * @brief Test verifying control flow path
+ */
 TEST_F(RASPSecurityTest, VerifyControlFlowPath) {
     rasp_init_cfi();
     
@@ -703,6 +856,9 @@ TEST_F(RASPSecurityTest, VerifyControlFlowPath) {
     EXPECT_EQ(result, RASP_SUCCESS);
 }
 
+/**
+ * @brief Test detecting control flow path violation
+ */
 TEST_F(RASPSecurityTest, VerifyControlFlowPathViolation) {
     rasp_init_cfi();
     
@@ -724,22 +880,34 @@ TEST_F(RASPSecurityTest, VerifyControlFlowPathViolation) {
 // RASP SYSTEM MANAGEMENT TESTS
 // ============================================================================
 
+/**
+ * @brief Test RASP system initialization
+ */
 TEST_F(RASPSecurityTest, InitRASPSystem) {
     int result = rasp_init(&config);
     EXPECT_EQ(result, RASP_SUCCESS);
 }
 
+/**
+ * @brief Test RASP initialization with null config parameter
+ */
 TEST_F(RASPSecurityTest, InitRASPNullConfig) {
     int result = rasp_init(nullptr);
     EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
 }
 
+/**
+ * @brief Test RASP system shutdown
+ */
 TEST_F(RASPSecurityTest, ShutdownRASP) {
     rasp_init(&config);
     rasp_shutdown();
     // No assertion, just verify it doesn't crash
 }
 
+/**
+ * @brief Test getting RASP status string
+ */
 TEST_F(RASPSecurityTest, GetStatus) {
     char status[512];
     
@@ -751,6 +919,9 @@ TEST_F(RASPSecurityTest, GetStatus) {
     EXPECT_NE(strstr(status, "Active"), nullptr);
 }
 
+/**
+ * @brief Test comprehensive security check
+ */
 TEST_F(RASPSecurityTest, ComprehensiveCheck) {
     rasp_init(&config);
     
@@ -763,6 +934,9 @@ TEST_F(RASPSecurityTest, ComprehensiveCheck) {
                 result == RASP_ERROR_HOOK_DETECTED);
 }
 
+/**
+ * @brief Test event logging functionality
+ */
 TEST_F(RASPSecurityTest, LogEvent) {
     bool callback_called = false;
     std::string logged_message;
@@ -782,6 +956,9 @@ TEST_F(RASPSecurityTest, LogEvent) {
 // INTEGRATION TESTS
 // ============================================================================
 
+/**
+ * @brief Test full protection integration with all RASP features
+ */
 TEST_F(RASPSecurityTest, IntegrationFullProtection) {
     // Initialize RASP with all protections enabled
     int result = rasp_init(&config);
@@ -814,6 +991,9 @@ TEST_F(RASPSecurityTest, IntegrationFullProtection) {
     rasp_shutdown();
 }
 
+/**
+ * @brief Test detection and response flow integration
+ */
 TEST_F(RASPSecurityTest, IntegrationDetectionResponseFlow) {
     config.default_action = RASP_ACTION_LOG;
     rasp_init(&config);
@@ -831,6 +1011,9 @@ TEST_F(RASPSecurityTest, IntegrationDetectionResponseFlow) {
     rasp_shutdown();
 }
 
+/**
+ * @brief Test stress testing with multiple CFI counters
+ */
 TEST_F(RASPSecurityTest, StressTestMultipleCFICounters) {
     rasp_init(&config);
     
@@ -859,11 +1042,17 @@ TEST_F(RASPSecurityTest, StressTestMultipleCFICounters) {
 // LIBRARY INTEGRITY TESTS
 // ============================================================================
 
+/**
+ * @brief Test library integrity verification with null path
+ */
 TEST_F(RASPSecurityTest, VerifyLibraryIntegrityNullPath) {
     int result = rasp_verify_library_integrity(nullptr);
     EXPECT_EQ(result, RASP_ERROR_INVALID_PARAM);
 }
 
+/**
+ * @brief Test library integrity verification with valid path
+ */
 TEST_F(RASPSecurityTest, VerifyLibraryIntegrityValidPath) {
 #ifdef _WIN32
     // Test with a known system library
@@ -875,6 +1064,9 @@ TEST_F(RASPSecurityTest, VerifyLibraryIntegrityValidPath) {
 #endif
 }
 
+/**
+ * @brief Test library integrity verification with invalid path
+ */
 TEST_F(RASPSecurityTest, VerifyLibraryIntegrityInvalidPath) {
     int result = rasp_verify_library_integrity("/nonexistent/library.dll");
     EXPECT_EQ(result, RASP_ERROR_FILE_ACCESS);
@@ -884,6 +1076,9 @@ TEST_F(RASPSecurityTest, VerifyLibraryIntegrityInvalidPath) {
 // TAMPERING MONITORING TESTS
 // ============================================================================
 
+/**
+ * @brief Test tampering monitoring with callback function
+ */
 TEST_F(RASPSecurityTest, MonitorTamperingWithCallback) {
     static bool callback_invoked = false;
     
@@ -895,11 +1090,17 @@ TEST_F(RASPSecurityTest, MonitorTamperingWithCallback) {
     EXPECT_EQ(result, RASP_SUCCESS);
 }
 
+/**
+ * @brief Test tampering monitoring with null callback
+ */
 TEST_F(RASPSecurityTest, MonitorTamperingNullCallback) {
     int result = rasp_monitor_tampering(100, nullptr);
     EXPECT_EQ(result, RASP_SUCCESS);
 }
 
+/**
+ * @brief Test tampering monitoring with zero interval
+ */
 TEST_F(RASPSecurityTest, MonitorTamperingZeroInterval) {
     auto callback = [](const TamperInfo* info) {};
     
@@ -911,6 +1112,9 @@ TEST_F(RASPSecurityTest, MonitorTamperingZeroInterval) {
 // PERFORMANCE TESTS
 // ============================================================================
 
+/**
+ * @brief Test performance of checksum calculation with large data
+ */
 TEST_F(RASPSecurityTest, PerformanceChecksumCalculation) {
     const size_t test_size = 1024 * 1024; // 1MB
     char* large_data = (char*)malloc(test_size);
@@ -932,6 +1136,9 @@ TEST_F(RASPSecurityTest, PerformanceChecksumCalculation) {
     free(large_data);
 }
 
+/**
+ * @brief Test performance of CFI operations with many iterations
+ */
 TEST_F(RASPSecurityTest, PerformanceCFIOperations) {
     rasp_init(&config);
     rasp_create_cfi_counter(1, (void*)0x1000);

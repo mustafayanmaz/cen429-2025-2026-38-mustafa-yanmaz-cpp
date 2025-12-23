@@ -1700,13 +1700,22 @@ TEST_F(BPlusTreeTest, ListPetBirthdays_BasicFunctionality) {
  */
 class SessionManagementTest : public ::testing::Test {
 protected:
+    /** @brief Hash table for user management */
     HashTable* table;
     
+    /**
+     * @brief Sets up the test fixture
+     * Creates hash table and initializes petcare session
+     */
     void SetUp() override {
         table = createHashTable();
         init_petcare_session();
     }
     
+    /**
+     * @brief Tears down the test fixture
+     * Logs out user session and frees hash table
+     */
     void TearDown() override {
         logoutUserSession();
         freeHashTable(table);
@@ -1792,12 +1801,21 @@ TEST_F(SessionManagementTest, MultipleLoginSessions) {
  */
 class DatabaseManagementTest : public ::testing::Test {
 protected:
+    /** @brief Path to the test database file */
     const char* test_db_path = "test_petcare.db";
     
+    /**
+     * @brief Sets up the test fixture
+     * Removes any existing test database file
+     */
     void SetUp() override {
         remove(test_db_path);
     }
     
+    /**
+     * @brief Tears down the test fixture
+     * Closes petcare database and removes test database file
+     */
     void TearDown() override {
         close_petcare_database();
         remove(test_db_path);
@@ -1928,8 +1946,13 @@ TEST_F(DatabaseManagementTest, MultipleMigrations) {
  */
 class XOREncryptionTest : public ::testing::Test {
 protected:
+    /** @brief Buffer for test data used in encryption tests */
     char test_data[100];
     
+    /**
+     * @brief Sets up the test fixture
+     * Initializes test data with sample string for encryption
+     */
     void SetUp() override {
         strcpy(test_data, "Test data for encryption");
     }
@@ -2170,13 +2193,23 @@ TEST_F(PasswordEncryptionAdvancedTest, ConsistentEncryption) {
  */
 class DatabaseStubTest : public ::testing::Test {
 protected:
+    /** @brief Database handle for test operations */
     Database* db;
+    /** @brief Hash table for user management */
     HashTable* table;
+    /** @brief Linked list of pets */
     Pet* petList;
+    /** @brief B+ tree for birthday management */
     BPlusTree* birthdayTree;
+    /** @brief Linked list of stray animals */
     StrayAnimal* strayList;
+    /** @brief Linked list of adopted animals */
     AdoptedAnimal* adoptedList;
 
+    /**
+     * @brief Sets up the test fixture
+     * Initializes all data structures for database stub testing
+     */
     void SetUp() override {
         db = NULL;
         table = createHashTable();
@@ -2186,6 +2219,10 @@ protected:
         adoptedList = NULL;
     }
 
+    /**
+     * @brief Tears down the test fixture
+     * Closes database, frees hash table and removes test files
+     */
     void TearDown() override {
         if (db != NULL) {
             db_close(db);
@@ -2462,10 +2499,18 @@ TEST_F(DatabaseStubTest, LoadAllStrayAnimalsReturnsZero) {
  */
 class HuffmanCodingTest : public ::testing::Test {
 protected:
+    /**
+     * @brief Sets up the test fixture
+     * Initializes test data for Huffman coding tests
+     */
     void SetUp() override {
         // Initialize test data
     }
 
+    /**
+     * @brief Tears down the test fixture
+     * Cleans up any allocated memory from Huffman operations
+     */
     void TearDown() override {
         // Clean up any allocated memory
     }
@@ -2676,9 +2721,15 @@ TEST_F(HuffmanCodingTest, DecompressString) {
  */
 class NewDatabaseFunctionTest : public ::testing::Test {
 protected:
+    /** @brief Database handle for test operations */
     Database* db;
+    /** @brief Path to the test database file */
     const char* test_db_path = "test_new_functions.db";
 
+    /**
+     * @brief Sets up the test fixture
+     * Initializes database and creates required tables
+     */
     void SetUp() override {
         db = db_init(test_db_path, NULL);
         if (db) {
@@ -2686,6 +2737,10 @@ protected:
         }
     }
 
+    /**
+     * @brief Tears down the test fixture
+     * Closes database and removes test database file
+     */
     void TearDown() override {
         if (db) {
             db_close(db);
@@ -2866,10 +2921,18 @@ TEST_F(NewDatabaseFunctionTest, DeleteExerciseRoutine) {
  */
 class EdgeCaseTest : public ::testing::Test {
 protected:
+    /**
+     * @brief Sets up the test fixture
+     * Initializes test environment for edge case testing
+     */
     void SetUp() override {
         // Initialize test environment
     }
 
+    /**
+     * @brief Tears down the test fixture
+     * Cleans up test environment after edge case tests
+     */
     void TearDown() override {
         // Clean up test environment
     }
@@ -3120,6 +3183,10 @@ TEST_F(DatabaseStubTest, RestoreReturnsError) {
  */
 class ComprehensiveDatabaseTest : public ::testing::Test {
 protected:
+    /**
+     * @brief Sets up the test fixture
+     * Creates test database and initializes required tables
+     */
     void SetUp() override {
         // Create test database
         test_db_path = "test_comprehensive.db";
@@ -3129,6 +3196,10 @@ protected:
         }
     }
 
+    /**
+     * @brief Tears down the test fixture
+     * Closes database and removes test database file
+     */
     void TearDown() override {
         if (db) {
             db_close(db);
@@ -3137,7 +3208,9 @@ protected:
         remove(test_db_path);
     }
 
+    /** @brief Database handle for test operations */
     Database* db = nullptr;
+    /** @brief Path to the test database file */
     const char* test_db_path;
 };
 
@@ -3419,6 +3492,10 @@ TEST_F(ComprehensiveDatabaseTest, BackupAndRestoreFunctions) {
  */
 class DatabaseEdgeCaseTest : public ::testing::Test {
 protected:
+    /**
+     * @brief Sets up the test fixture
+     * Creates test database for edge case testing
+     */
     void SetUp() override {
         test_db_path = "test_edge_cases.db";
         db = db_init(test_db_path, NULL);
@@ -3427,6 +3504,10 @@ protected:
         }
     }
 
+    /**
+     * @brief Tears down the test fixture
+     * Closes database and removes test database file
+     */
     void TearDown() override {
         if (db) {
             db_close(db);
@@ -3434,7 +3515,9 @@ protected:
         remove(test_db_path);
     }
 
+    /** @brief Database handle for test operations */
     Database* db = nullptr;
+    /** @brief Path to the test database file */
     const char* test_db_path;
 };
 
@@ -3538,6 +3621,10 @@ TEST_F(DatabaseEdgeCaseTest, NonExistentReferences) {
  */
 class DatabaseIntegrationTest : public ::testing::Test {
 protected:
+    /**
+     * @brief Sets up the test fixture
+     * Creates test database for integration testing
+     */
     void SetUp() override {
         test_db_path = "test_integration.db";
         db = db_init(test_db_path, NULL);
@@ -3546,6 +3633,10 @@ protected:
         }
     }
 
+    /**
+     * @brief Tears down the test fixture
+     * Closes database and removes test database file
+     */
     void TearDown() override {
         if (db) {
             db_close(db);
@@ -3553,7 +3644,9 @@ protected:
         remove(test_db_path);
     }
 
+    /** @brief Database handle for test operations */
     Database* db = nullptr;
+    /** @brief Path to the test database file */
     const char* test_db_path;
 };
 
@@ -3738,9 +3831,15 @@ TEST_F(DatabaseIntegrationTest, LoadAllAdoptedAnimals) {
  */
 class DatabaseGroomingAndSchedulesTest : public ::testing::Test {
 protected:
+    /** @brief Path to the test database file */
     const char* db_path = "test_groom_sched.db";
+    /** @brief Database handle for test operations */
     Database* db = nullptr;
 
+    /**
+     * @brief Sets up the test fixture
+     * Creates database, tables and adds minimal test owner and pet
+     */
     void SetUp() override {
         remove(db_path);
         db = db_init(db_path, NULL);
@@ -3752,6 +3851,10 @@ protected:
         }
     }
 
+    /**
+     * @brief Tears down the test fixture
+     * Closes database and removes test database file
+     */
     void TearDown() override {
         if (db) {
             db_close(db);
@@ -3862,9 +3965,15 @@ TEST_F(DatabaseGroomingAndSchedulesTest, LoadExerciseRoutinesIntoStack) {
  */
 class AppointmentFileTest : public ::testing::Test {
 protected:
+    /** @brief Path to the test appointments file */
     const char* testFile = "test_appointments.data";
+    /** @brief Linked list of pets for testing */
     Pet* petList = nullptr;
     
+    /**
+     * @brief Sets up the test fixture
+     * Resets global appointment list and creates test pet
+     */
     void SetUp() override {
         // Reset global appointment list
         extern Appointment* appointmentList;
@@ -3874,6 +3983,10 @@ protected:
         addPet(&petList, "TestPet", "Dog", 3, "TestOwner");
     }
     
+    /**
+     * @brief Tears down the test fixture
+     * Frees pet list and cleans up appointment list
+     */
     void TearDown() override {
         freePetList(petList);
         petList = nullptr;
@@ -3943,8 +4056,13 @@ TEST_F(AppointmentFileTest, LoadAppointmentsFromFileMissing) {
  */
 class CancelAppointmentEdgeCasesTest : public ::testing::Test {
 protected:
+    /** @brief Linked list of pets for testing */
     Pet* petList = nullptr;
     
+    /**
+     * @brief Sets up the test fixture
+     * Resets global appointment list and adds test pets
+     */
     void SetUp() override {
         // Reset global appointment list
         extern Appointment* appointmentList;
@@ -3954,6 +4072,10 @@ protected:
         addPet(&petList, "Pet2", "Cat", 2, "Owner2");
     }
     
+    /**
+     * @brief Tears down the test fixture
+     * Frees pet list and cleans up appointment list
+     */
     void TearDown() override {
         freePetList(petList);
         petList = nullptr;
@@ -4023,8 +4145,13 @@ TEST_F(CancelAppointmentEdgeCasesTest, CancelMiddleAppointment) {
  */
 class DeletePetEdgeCasesTest : public ::testing::Test {
 protected:
+    /** @brief Linked list of pets for testing */
     Pet* petList = nullptr;
     
+    /**
+     * @brief Tears down the test fixture
+     * Frees pet list after test completion
+     */
     void TearDown() override {
         freePetList(petList);
         petList = nullptr;
@@ -4106,9 +4233,15 @@ TEST_F(DeletePetEdgeCasesTest, DeleteLastPetInMultipleList) {
  */
 class SavePetsEdgeCasesTest : public ::testing::Test {
 protected:
+    /** @brief Linked list of pets for testing */
     Pet* petList = nullptr;
+    /** @brief Path to the test file for saving pets */
     const char* testFile = "test_save_pets.dat";
     
+    /**
+     * @brief Tears down the test fixture
+     * Frees pet list and removes test files
+     */
     void TearDown() override {
         freePetList(petList);
         petList = nullptr;
@@ -4151,12 +4284,21 @@ TEST_F(SavePetsEdgeCasesTest, SaveLoadRoundtrip) {
  */
 class MedicineScheduleEdgeCasesTest : public ::testing::Test {
 protected:
+    /** @brief Queue for medicine schedules */
     Queue* medicineQueue;
     
+    /**
+     * @brief Sets up the test fixture
+     * Creates medicine queue for testing
+     */
     void SetUp() override {
         medicineQueue = createQueue();
     }
     
+    /**
+     * @brief Tears down the test fixture
+     * Empties and frees the medicine queue
+     */
     void TearDown() override {
         while (!isQueueEmpty(medicineQueue)) {
             FeedingSchedule* temp = dequeue(medicineQueue);
@@ -4215,12 +4357,21 @@ TEST_F(MedicineScheduleEdgeCasesTest, DeleteFromEmptyQueue) {
  */
 class FeedingScheduleEdgeCasesTest : public ::testing::Test {
 protected:
+    /** @brief Queue for feeding schedules */
     Queue* feedingQueue;
     
+    /**
+     * @brief Sets up the test fixture
+     * Creates feeding queue for testing
+     */
     void SetUp() override {
         feedingQueue = createQueue();
     }
     
+    /**
+     * @brief Tears down the test fixture
+     * Empties and frees the feeding queue
+     */
     void TearDown() override {
         while (!isQueueEmpty(feedingQueue)) {
             FeedingSchedule* temp = dequeue(feedingQueue);
@@ -4263,15 +4414,26 @@ TEST_F(FeedingScheduleEdgeCasesTest, DeleteMiddleFeedingSchedule) {
  */
 class BirthdayFileEdgeCasesTest : public ::testing::Test {
 protected:
+    /** @brief B+ tree for storing birthdays */
     BPlusTree* tree = nullptr;
+    /** @brief Linked list of pets for testing */
     Pet* petList = nullptr;
+    /** @brief Path to the test file for birthdays */
     const char* testFile = "test_birthday_edge.dat";
     
+    /**
+     * @brief Sets up the test fixture
+     * Creates B+ tree and adds test pet
+     */
     void SetUp() override {
         tree = createBPlusTree();
         addPet(&petList, "BirthdayPet", "Dog", 3, "BirthdayOwner");
     }
     
+    /**
+     * @brief Tears down the test fixture
+     * Frees pet list, deletes tree and removes test file
+     */
     void TearDown() override {
         freePetList(petList);
         petList = nullptr;
@@ -4329,10 +4491,18 @@ TEST_F(BirthdayFileEdgeCasesTest, LoadFromMissingFile) {
  */
 class MigrationTest : public ::testing::Test {
 protected:
+    /**
+     * @brief Sets up the test fixture
+     * Ensures no database is active for the test
+     */
     void SetUp() override {
         // Ensure no database is active for the test
     }
     
+    /**
+     * @brief Tears down the test fixture
+     * Removes all test data files
+     */
     void TearDown() override {
         // Clean up any test files
         remove("users.dat");
@@ -4361,11 +4531,19 @@ TEST_F(MigrationTest, MigrateWithoutDatabase) {
  */
 class StrayAnimalFileEdgeCasesTest : public ::testing::Test {
 protected:
+    /** @brief Linked list of stray animals */
     StrayAnimal* strayList = nullptr;
+    /** @brief Linked list of adopted animals */
     AdoptedAnimal* adoptedList = nullptr;
+    /** @brief Path to the stray animals test file */
     const char* strayFile = "test_stray_edge.dat";
+    /** @brief Path to the adopted animals test file */
     const char* adoptedFile = "test_adopted_edge.dat";
     
+    /**
+     * @brief Tears down the test fixture
+     * Frees stray and adopted lists, removes test files
+     */
     void TearDown() override {
         while (strayList) {
             StrayAnimal* temp = strayList;
@@ -4469,13 +4647,22 @@ TEST(XorEncryptionTest, EncryptEmptyString) {
  */
 class SessionWithFingerprintTest : public ::testing::Test {
 protected:
+    /** @brief Hash table for session user management */
     HashTable* sessionUserTable = nullptr;
     
+    /**
+     * @brief Sets up the test fixture
+     * Creates hash table and adds test user
+     */
     void SetUp() override {
         sessionUserTable = createHashTable();
         addUser(sessionUserTable, "testuser", "testpassword");
     }
     
+    /**
+     * @brief Tears down the test fixture
+     * Logs out session and frees hash table
+     */
     void TearDown() override {
         logoutUserSession();
         freeHashTable(sessionUserTable);
@@ -4581,8 +4768,13 @@ TEST_F(SessionWithFingerprintTest, MultipleLoginLogoutCycles) {
  */
 class DatabaseInitTest : public ::testing::Test {
 protected:
+    /** @brief Path to the test database file */
     const char* testDbPath = "test_init_database.db";
     
+    /**
+     * @brief Sets up the test fixture
+     * Cleans up any existing test database files
+     */
     void SetUp() override {
         // Clean up any existing test database
         remove(testDbPath);
@@ -4590,6 +4782,10 @@ protected:
         remove("test_init_database.db.tmp.sqlite");
     }
     
+    /**
+     * @brief Tears down the test fixture
+     * Closes database and removes all test database files
+     */
     void TearDown() override {
         close_petcare_database();
         remove(testDbPath);
@@ -4687,8 +4883,13 @@ TEST_F(DatabaseInitTest, GetPetcareDatabase) {
  */
 class MigrationFullTest : public ::testing::Test {
 protected:
+    /** @brief Path to the test database file */
     const char* testDbPath = "test_migration.db";
     
+    /**
+     * @brief Sets up the test fixture
+     * Closes any existing database and cleans up test files
+     */
     void SetUp() override {
         // Clean up
         close_petcare_database();
@@ -4699,6 +4900,10 @@ protected:
         remove("pets.dat");
     }
     
+    /**
+     * @brief Tears down the test fixture
+     * Closes database and removes all test files
+     */
     void TearDown() override {
         close_petcare_database();
         remove(testDbPath);
@@ -4956,8 +5161,13 @@ TEST_F(KdfIterationsTest, InvalidKdfIterationsValue) {
  */
 class ComprehensiveMigrationTest : public ::testing::Test {
 protected:
+    /** @brief Path to the test database file */
     const char* testDbPath = "test_comprehensive_migration.db";
     
+    /**
+     * @brief Sets up the test fixture
+     * Cleans up all test files before each test
+     */
     void SetUp() override {
         // Clean up everything before each test
         close_petcare_database();
@@ -4970,6 +5180,10 @@ protected:
         remove("adopted.dat");
     }
     
+    /**
+     * @brief Tears down the test fixture
+     * Closes database and removes all test files
+     */
     void TearDown() override {
         close_petcare_database();
         remove(testDbPath);
@@ -4981,7 +5195,10 @@ protected:
         remove("adopted.dat");
     }
     
-    // Helper to create users.dat with test data
+    /**
+     * @brief Helper to create users.dat with test data
+     * Creates hash table with test users and saves to file
+     */
     void createUsersDatFile() {
         HashTable* table = createHashTable();
         addUser(table, "migrate_user1", "password1");
@@ -4991,7 +5208,10 @@ protected:
         freeHashTable(table);
     }
     
-    // Helper to create pets.dat with test data
+    /**
+     * @brief Helper to create pets.dat with test data
+     * Creates pet list with test pets and saves to file
+     */
     void createPetsDatFile() {
         Pet* petList = nullptr;
         addPet(&petList, "MigrateDog1", "Dog", 3, "migrate_user1");
@@ -5001,7 +5221,10 @@ protected:
         freePetList(petList);
     }
     
-    // Helper to create adoptable.dat with test stray animals
+    /**
+     * @brief Helper to create adoptable.dat with test stray animals
+     * Creates stray animal list and saves to file
+     */
     void createAdoptableDatFile() {
         StrayAnimal* strayList = nullptr;
         addStrayAnimalToList(&strayList, "Stray_Dog", "Male", "01/01/2024", 2);
@@ -5015,7 +5238,10 @@ protected:
         }
     }
     
-    // Helper to create adopted.dat with test adopted animals
+    /**
+     * @brief Helper to create adopted.dat with test adopted animals
+     * Creates adopted animal list and saves to file
+     */
     void createAdoptedDatFile() {
         AdoptedAnimal* adoptedList = nullptr;
         
@@ -5384,11 +5610,19 @@ TEST_F(ComprehensiveMigrationTest, MigrateManyAdoptedAnimalsFromDat) {
  */
 class UncoveredLinesTest : public ::testing::Test {
 protected:
+    /** @brief Database handle for test operations */
     Database* db = nullptr;
+    /** @brief Path to the test database file */
     const char* test_db_path = "test_uncovered_lines.db";
+    /** @brief Hash table for user management */
     HashTable* userTable = nullptr;
+    /** @brief Linked list of pets for testing */
     Pet* petList = nullptr;
 
+    /**
+     * @brief Sets up the test fixture
+     * Cleans up test files, initializes database and creates test data structures
+     */
     void SetUp() override {
         // Clean up before each test
         remove(test_db_path);
@@ -5403,6 +5637,10 @@ protected:
         petList = nullptr;
     }
 
+    /**
+     * @brief Tears down the test fixture
+     * Closes database, frees data structures and removes test files
+     */
     void TearDown() override {
         if (db) {
             db_close(db);
@@ -5878,9 +6116,15 @@ TEST_F(UncoveredLinesTest, LoadDataVerifiesIntegrity) {
  */
 class AdditionalUncoveredLinesTest : public ::testing::Test {
 protected:
+    /** @brief Database handle for test operations */
     Database* db = nullptr;
+    /** @brief Path to the test database file */
     const char* test_db_path = "test_additional_uncovered.db";
 
+    /**
+     * @brief Sets up the test fixture
+     * Cleans up test files and initializes test database
+     */
     void SetUp() override {
         remove(test_db_path);
         remove("test_additional_uncovered.db.enc");
@@ -5892,6 +6136,10 @@ protected:
         }
     }
 
+    /**
+     * @brief Tears down the test fixture
+     * Closes database and removes test files
+     */
     void TearDown() override {
         if (db) {
             db_close(db);
@@ -6383,9 +6631,15 @@ TEST_F(AdditionalUncoveredLinesTest, LoadMultipleStrayAnimalsListBuilding) {
  */
 class PetcareDatabaseIntegrationTest : public ::testing::Test {
 protected:
+    /** @brief Path to the test database file */
     const char* test_db_path = "test_petcare_integration.db";
+    /** @brief Linked list of pets for testing */
     Pet* petList = nullptr;
 
+    /**
+     * @brief Sets up the test fixture
+     * Cleans up test files and initializes database
+     */
     void SetUp() override {
         // Clean up any existing test files
         remove(test_db_path);
@@ -6401,6 +6655,10 @@ protected:
 #endif
     }
 
+    /**
+     * @brief Tears down the test fixture
+     * Closes database, frees pet list and removes test files
+     */
     void TearDown() override {
 #ifndef SQLITE3_HEADER_ONLY
         if (g_petcare_db) {
@@ -6638,8 +6896,13 @@ TEST_F(PetcareDatabaseIntegrationTest, MultipleDeletesWithDatabase) {
  */
 class SavePetsFileErrorTest : public ::testing::Test {
 protected:
+    /** @brief Linked list of pets for testing */
     Pet* petList = nullptr;
     
+    /**
+     * @brief Sets up the test fixture
+     * Ensures no database is set for file-based tests
+     */
     void SetUp() override {
         // Ensure no database is set for file-based tests
 #ifndef SQLITE3_HEADER_ONLY
@@ -6647,6 +6910,10 @@ protected:
 #endif
     }
     
+    /**
+     * @brief Tears down the test fixture
+     * Frees pet list after test completion
+     */
     void TearDown() override {
         freePetList(petList);
         petList = nullptr;
@@ -6684,9 +6951,15 @@ TEST_F(SavePetsFileErrorTest, SaveToInvalidPath) {
  */
 class AppointmentDatabaseCoverageTest : public ::testing::Test {
 protected:
+    /** @brief Path to the test database file */
     const char* test_db_path = "test_appt_db.db";
+    /** @brief Linked list of pets for testing */
     Pet* petList = nullptr;
     
+    /**
+     * @brief Sets up the test fixture
+     * Cleans up test files, initializes database and clears appointment list
+     */
     void SetUp() override {
         remove(test_db_path);
         remove("test_appt_db.db.enc");
@@ -6704,6 +6977,10 @@ protected:
         appointmentList = nullptr;
     }
     
+    /**
+     * @brief Tears down the test fixture
+     * Closes database, frees pet list, cleans appointment list and removes test files
+     */
     void TearDown() override {
 #ifndef SQLITE3_HEADER_ONLY
         if (g_petcare_db) {

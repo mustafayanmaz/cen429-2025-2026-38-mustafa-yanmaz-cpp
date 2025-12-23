@@ -468,8 +468,29 @@ int db_update_exercise_routine(Database* db, const char* pet_name, const char* o
 int db_delete_exercise_routine(Database* db, const char* pet_name, const char* owner);
 
 // Loaders from DB into memory structures
+
+/**
+ * @brief Load feeding schedules from the database into a queue.
+ * @param db Database handle.
+ * @param queue Target queue to receive feeding schedule entries.
+ * @return Number of schedules loaded, or -1 on failure.
+ */
 int db_load_feeding_schedules(Database* db, struct Queue* queue);
+
+/**
+ * @brief Load medicine schedules from the database into a queue.
+ * @param db Database handle.
+ * @param queue Target queue to receive medicine schedule entries.
+ * @return Number of schedules loaded, or -1 on failure.
+ */
 int db_load_medicine_schedules(Database* db, struct Queue* queue);
+
+/**
+ * @brief Load exercise routines from the database into the global exercise stack.
+ * @param db Database handle.
+ * @param owner Owner username used for filtering (may be unused).
+ * @return Number of routines loaded, or -1 on failure.
+ */
 int db_load_exercise_routines(Database* db, const char* owner);
 
 // ============================================================================

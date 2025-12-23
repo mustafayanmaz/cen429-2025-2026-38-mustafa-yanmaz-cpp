@@ -9,12 +9,23 @@
 #include "raspSecurity.h"
 #include <cstring>
 
+/**
+ * @brief Test fixture for Security Testing Framework tests
+ */
 class SecurityTestFrameworkTest : public ::testing::Test {
 protected:
+    /**
+     * @brief Sets up the test fixture
+     * Initializes the security test framework
+     */
     void SetUp() override {
         security_test_init();
     }
     
+    /**
+     * @brief Tears down the test fixture
+     * Shuts down the security test framework
+     */
     void TearDown() override {
         security_test_shutdown();
     }
@@ -24,12 +35,18 @@ protected:
 // FRAMEWORK INITIALIZATION TESTS
 // ============================================================================
 
+/**
+ * @brief Test successful framework initialization
+ */
 TEST_F(SecurityTestFrameworkTest, Init_Success) {
     // Already initialized in SetUp
     int result = security_test_init();
     EXPECT_EQ(result, 0);
 }
 
+/**
+ * @brief Test successful framework shutdown and re-initialization
+ */
 TEST_F(SecurityTestFrameworkTest, Shutdown_Success) {
     security_test_shutdown();
     // Re-init should work
@@ -41,6 +58,9 @@ TEST_F(SecurityTestFrameworkTest, Shutdown_Success) {
 // AUTHENTICATION TESTS
 // ============================================================================
 
+/**
+ * @brief Test authentication brute force protection
+ */
 TEST_F(SecurityTestFrameworkTest, Auth_BruteForce) {
     SecurityTestResult result;
     memset(&result, 0, sizeof(result));
@@ -52,6 +72,9 @@ TEST_F(SecurityTestFrameworkTest, Auth_BruteForce) {
     EXPECT_STREQ(result.test_id, "AUTH-001");
 }
 
+/**
+ * @brief Test secure password storage verification
+ */
 TEST_F(SecurityTestFrameworkTest, Auth_PasswordStorage) {
     SecurityTestResult result;
     memset(&result, 0, sizeof(result));
@@ -63,6 +86,9 @@ TEST_F(SecurityTestFrameworkTest, Auth_PasswordStorage) {
     EXPECT_STREQ(result.test_id, "AUTH-002");
 }
 
+/**
+ * @brief Test session hijacking protection
+ */
 TEST_F(SecurityTestFrameworkTest, Auth_SessionHijacking) {
     SecurityTestResult result;
     memset(&result, 0, sizeof(result));
@@ -78,6 +104,9 @@ TEST_F(SecurityTestFrameworkTest, Auth_SessionHijacking) {
 // CRYPTOGRAPHY TESTS
 // ============================================================================
 
+/**
+ * @brief Test whitebox cryptography key protection
+ */
 TEST_F(SecurityTestFrameworkTest, Crypto_WhiteboxKey) {
     SecurityTestResult result;
     memset(&result, 0, sizeof(result));
@@ -89,6 +118,9 @@ TEST_F(SecurityTestFrameworkTest, Crypto_WhiteboxKey) {
     EXPECT_STREQ(result.test_id, "CRYPTO-001");
 }
 
+/**
+ * @brief Test cascade encryption functionality
+ */
 TEST_F(SecurityTestFrameworkTest, Crypto_Cascade) {
     SecurityTestResult result;
     memset(&result, 0, sizeof(result));
@@ -104,6 +136,9 @@ TEST_F(SecurityTestFrameworkTest, Crypto_Cascade) {
 // RASP TESTS
 // ============================================================================
 
+/**
+ * @brief Test RASP debugger detection security
+ */
 TEST_F(SecurityTestFrameworkTest, RASP_Debugger) {
     SecurityTestResult result;
     memset(&result, 0, sizeof(result));
@@ -115,6 +150,9 @@ TEST_F(SecurityTestFrameworkTest, RASP_Debugger) {
     EXPECT_STREQ(result.test_id, "RASP-001");
 }
 
+/**
+ * @brief Test RASP tampering detection security
+ */
 TEST_F(SecurityTestFrameworkTest, RASP_Tampering) {
     SecurityTestResult result;
     memset(&result, 0, sizeof(result));
@@ -126,6 +164,9 @@ TEST_F(SecurityTestFrameworkTest, RASP_Tampering) {
     EXPECT_STREQ(result.test_id, "RASP-002");
 }
 
+/**
+ * @brief Test RASP hook detection security
+ */
 TEST_F(SecurityTestFrameworkTest, RASP_Hooks) {
     SecurityTestResult result;
     memset(&result, 0, sizeof(result));
@@ -137,6 +178,9 @@ TEST_F(SecurityTestFrameworkTest, RASP_Hooks) {
     EXPECT_STREQ(result.test_id, "RASP-003");
 }
 
+/**
+ * @brief Test RASP Control Flow Integrity (CFI) protection
+ */
 TEST_F(SecurityTestFrameworkTest, RASP_CFI) {
     SecurityTestResult result;
     memset(&result, 0, sizeof(result));
@@ -152,6 +196,9 @@ TEST_F(SecurityTestFrameworkTest, RASP_CFI) {
 // MEMORY SECURITY TESTS
 // ============================================================================
 
+/**
+ * @brief Test memory buffer overflow protection
+ */
 TEST_F(SecurityTestFrameworkTest, Memory_BufferOverflow) {
     SecurityTestResult result;
     memset(&result, 0, sizeof(result));
@@ -163,6 +210,9 @@ TEST_F(SecurityTestFrameworkTest, Memory_BufferOverflow) {
     EXPECT_STREQ(result.test_id, "MEM-001");
 }
 
+/**
+ * @brief Test sensitive data residue clearing in memory
+ */
 TEST_F(SecurityTestFrameworkTest, Memory_SensitiveResidue) {
     SecurityTestResult result;
     memset(&result, 0, sizeof(result));
@@ -174,6 +224,9 @@ TEST_F(SecurityTestFrameworkTest, Memory_SensitiveResidue) {
     EXPECT_STREQ(result.test_id, "MEM-002");
 }
 
+/**
+ * @brief Test memory disclosure prevention
+ */
 TEST_F(SecurityTestFrameworkTest, Memory_Disclosure) {
     SecurityTestResult result;
     memset(&result, 0, sizeof(result));
@@ -189,6 +242,9 @@ TEST_F(SecurityTestFrameworkTest, Memory_Disclosure) {
 // DATABASE TESTS
 // ============================================================================
 
+/**
+ * @brief Test SQL injection prevention in database layer
+ */
 TEST_F(SecurityTestFrameworkTest, Database_SQLInjection) {
     SecurityTestResult result;
     memset(&result, 0, sizeof(result));
@@ -200,6 +256,9 @@ TEST_F(SecurityTestFrameworkTest, Database_SQLInjection) {
     EXPECT_STREQ(result.test_id, "DB-001");
 }
 
+/**
+ * @brief Test database encryption functionality
+ */
 TEST_F(SecurityTestFrameworkTest, Database_Encryption) {
     SecurityTestResult result;
     memset(&result, 0, sizeof(result));
@@ -215,6 +274,9 @@ TEST_F(SecurityTestFrameworkTest, Database_Encryption) {
 // OBFUSCATION TESTS
 // ============================================================================
 
+/**
+ * @brief Test string extraction obfuscation protection
+ */
 TEST_F(SecurityTestFrameworkTest, Obfuscation_StringExtraction) {
     SecurityTestResult result;
     memset(&result, 0, sizeof(result));
@@ -226,6 +288,9 @@ TEST_F(SecurityTestFrameworkTest, Obfuscation_StringExtraction) {
     EXPECT_STREQ(result.test_id, "OBF-001");
 }
 
+/**
+ * @brief Test control flow obfuscation protection
+ */
 TEST_F(SecurityTestFrameworkTest, Obfuscation_ControlFlow) {
     SecurityTestResult result;
     memset(&result, 0, sizeof(result));
@@ -241,6 +306,9 @@ TEST_F(SecurityTestFrameworkTest, Obfuscation_ControlFlow) {
 // TEST RUNNER TESTS
 // ============================================================================
 
+/**
+ * @brief Test running all security tests successfully
+ */
 TEST_F(SecurityTestFrameworkTest, RunAll_Success) {
     SecurityTestSummary summary;
     memset(&summary, 0, sizeof(summary));
@@ -253,6 +321,9 @@ TEST_F(SecurityTestFrameworkTest, RunAll_Success) {
     EXPECT_GT(summary.total_duration_ms, 0);
 }
 
+/**
+ * @brief Test running authentication category tests
+ */
 TEST_F(SecurityTestFrameworkTest, RunCategory_Auth) {
     SecurityTestSummary summary;
     memset(&summary, 0, sizeof(summary));
@@ -263,6 +334,9 @@ TEST_F(SecurityTestFrameworkTest, RunCategory_Auth) {
     EXPECT_EQ(failed, 0);
 }
 
+/**
+ * @brief Test running RASP category tests
+ */
 TEST_F(SecurityTestFrameworkTest, RunCategory_RASP) {
     SecurityTestSummary summary;
     memset(&summary, 0, sizeof(summary));
@@ -273,6 +347,9 @@ TEST_F(SecurityTestFrameworkTest, RunCategory_RASP) {
     EXPECT_EQ(failed, 0);
 }
 
+/**
+ * @brief Test running a single valid security test
+ */
 TEST_F(SecurityTestFrameworkTest, RunSingle_Valid) {
     SecurityTestResult result;
     memset(&result, 0, sizeof(result));
@@ -283,6 +360,9 @@ TEST_F(SecurityTestFrameworkTest, RunSingle_Valid) {
     EXPECT_STREQ(result.test_id, "AUTH-001");
 }
 
+/**
+ * @brief Test running single test with invalid test ID
+ */
 TEST_F(SecurityTestFrameworkTest, RunSingle_Invalid) {
     SecurityTestResult result;
     memset(&result, 0, sizeof(result));
@@ -297,6 +377,9 @@ TEST_F(SecurityTestFrameworkTest, RunSingle_Invalid) {
 // COMPLIANCE TESTS
 // ============================================================================
 
+/**
+ * @brief Test ASVS Level 1 compliance check
+ */
 TEST_F(SecurityTestFrameworkTest, ASVS_Level1_Compliance) {
     ASVSComplianceResult result;
     memset(&result, 0, sizeof(result));
@@ -308,6 +391,9 @@ TEST_F(SecurityTestFrameworkTest, ASVS_Level1_Compliance) {
     EXPECT_GT(result.met_requirements, 0);
 }
 
+/**
+ * @brief Test ASVS Level 2 compliance check
+ */
 TEST_F(SecurityTestFrameworkTest, ASVS_Level2_Compliance) {
     ASVSComplianceResult result;
     memset(&result, 0, sizeof(result));
@@ -318,6 +404,9 @@ TEST_F(SecurityTestFrameworkTest, ASVS_Level2_Compliance) {
     EXPECT_EQ(result.level, 2);
 }
 
+/**
+ * @brief Test ASVS Level 3 compliance check
+ */
 TEST_F(SecurityTestFrameworkTest, ASVS_Level3_Compliance) {
     ASVSComplianceResult result;
     memset(&result, 0, sizeof(result));
@@ -328,6 +417,9 @@ TEST_F(SecurityTestFrameworkTest, ASVS_Level3_Compliance) {
     EXPECT_EQ(result.level, 3);
 }
 
+/**
+ * @brief Test ETSI compliance check
+ */
 TEST_F(SecurityTestFrameworkTest, ETSI_Compliance) {
     ETSIComplianceResult result;
     memset(&result, 0, sizeof(result));
@@ -342,6 +434,9 @@ TEST_F(SecurityTestFrameworkTest, ETSI_Compliance) {
 // REPORT GENERATION TESTS
 // ============================================================================
 
+/**
+ * @brief Test JSON security report generation
+ */
 TEST_F(SecurityTestFrameworkTest, GenerateJSONReport) {
     SecurityTestSummary summary;
     memset(&summary, 0, sizeof(summary));
@@ -361,6 +456,9 @@ TEST_F(SecurityTestFrameworkTest, GenerateJSONReport) {
     if (f) fclose(f);
 }
 
+/**
+ * @brief Test Markdown security report generation
+ */
 TEST_F(SecurityTestFrameworkTest, GenerateMDReport) {
     SecurityTestSummary summary;
     memset(&summary, 0, sizeof(summary));
@@ -384,6 +482,9 @@ TEST_F(SecurityTestFrameworkTest, GenerateMDReport) {
 // INTEGRATION TESTS
 // ============================================================================
 
+/**
+ * @brief Test full security audit integration with all tests and compliance checks
+ */
 TEST_F(SecurityTestFrameworkTest, FullSecurityAudit) {
     // Run all tests
     SecurityTestSummary summary;

@@ -13,18 +13,28 @@
 #include "assetProtection.h"
 #include "codeObfuscation.h"
 
-// Obfuscated encryption password for file storage
+/** @brief Obfuscated encryption password used for secure file storage. */
 static ObfuscatedString g_file_encryption_password;
+
+/** @brief Flag indicating whether the obfuscated file password has been initialized. */
 static int g_password_initialized = 0;
 
-// Global database handle
+/** @brief Global database handle used by the PetCare module. */
 Database* g_petcare_db = NULL;
+
+/** @brief Flag indicating whether the global database has been initialized. */
 static int g_db_initialized = 0;
 
-// Global device fingerprint and session
+/** @brief Cached device fingerprint for the current device. */
 static DeviceFingerprint g_device_fingerprint;
+
+/** @brief Current authenticated session data. */
 static SessionData g_current_session;
+
+/** @brief Flag indicating whether the device fingerprint has been initialized. */
 static int g_fingerprint_initialized = 0;
+
+/** @brief Flag indicating whether there is an active user session. */
 static int g_session_active = 0;
 
 /**

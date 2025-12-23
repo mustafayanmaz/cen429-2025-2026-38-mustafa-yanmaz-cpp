@@ -78,15 +78,33 @@ int db_print_all_groomings(Database* db) { (void)db; return 0; }
 // ============================================================================
 
 // Forward declarations for encryption helper functions
+/**
+ * @brief Encrypt a single SQLite database page before it is written to disk.
+ * @param pCtx Encryption context provided by SQLite.
+ * @param nPage Page number being encrypted.
+ * @param pData Pointer to page data buffer (modified in place).
+ * @param nData Size of the page data buffer in bytes.
+ * @return SQLITE_OK on success or an SQLite-compatible error code.
+ */
 static int encrypt_database_page(void* pCtx, int nPage, unsigned char* pData, int nData);
+
+/**
+ * @brief Decrypt a single SQLite database page after it is read from disk.
+ * @param pCtx Encryption context provided by SQLite.
+ * @param nPage Page number being decrypted.
+ * @param pData Pointer to page data buffer (modified in place).
+ * @param nData Size of the page data buffer in bytes.
+ * @return SQLITE_OK on success or an SQLite-compatible error code.
+ */
 static int decrypt_database_page(void* pCtx, int nPage, unsigned char* pData, int nData);
 
 /**
- * @brief Obfuscated database encryption key
- * Security: Key is obfuscated in memory and revealed only when needed
+ * @brief Obfuscated database encryption key.
+ * @details Key material is stored in obfuscated form and only revealed when needed.
  */
-// Obfuscated encryption key - will be revealed at runtime
 static ObfuscatedString g_db_encryption_key_obf;
+
+/** @brief Flag indicating whether the obfuscated DB key has been initialized. */
 static int g_db_key_initialized = 0;
 
 /**
@@ -1952,7 +1970,12 @@ int db_print_all_groomings(Database* db) {
     return count;
 }
 
-// Load feeding schedules into memory queue
+/**
+ * @brief Load feeding schedules from the database into an in-memory queue.
+ * @param db Pointer to the opened database handle.
+ * @param queue Target queue that will receive feeding schedule entries.
+ * @return Number of schedules loaded, or -1 on error.
+ */
 int db_load_feeding_schedules(Database* db, Queue* queue) {
     if (!db || !db->db || !queue) return 0;
     // clear existing queue
@@ -1973,7 +1996,12 @@ int db_load_feeding_schedules(Database* db, Queue* queue) {
     return count;
 }
 
-// Load medicine schedules into memory queue
+/**
+ * @brief Load medicine schedules from the database into an in-memory queue.
+ * @param db Pointer to the opened database handle.
+ * @param queue Target queue that will receive medicine schedule entries.
+ * @return Number of schedules loaded, or -1 on error.
+ */
 int db_load_medicine_schedules(Database* db, Queue* queue) {
     if (!db || !db->db || !queue) return 0;
     while (!isQueueEmpty(queue)) { FeedingSchedule* f = dequeue(queue); if (f) free(f); }
@@ -1992,7 +2020,12 @@ int db_load_medicine_schedules(Database* db, Queue* queue) {
     return count;
 }
 
-// Load exercise routines into global exerciseStack
+/**
+ * @brief Load exercise routines from the database into the global exercise stack.
+ * @param db Pointer to the opened database handle.
+ * @param owner Owner name used for filtering (currently unused).
+ * @return Number of routines loaded, or -1 on error.
+ */
 int db_load_exercise_routines(Database* db, const char* owner) {
     (void)owner; // owner currently not filtering
     if (!db || !db->db) return 0;
