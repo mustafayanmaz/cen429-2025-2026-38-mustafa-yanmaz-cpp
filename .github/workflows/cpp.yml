@@ -619,7 +619,7 @@ jobs:
         id: create_release
         uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.CMAKE_CPP_TEMPLATE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.CEN_429_MUST_ON }}
         with:
           tag_name: ${{ github.ref }}
           release_name: Release ${{ github.ref }}
@@ -844,7 +844,7 @@ jobs:
         if: matrix.config.active == true
         uses: actions/upload-release-asset@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.CMAKE_CPP_TEMPLATE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.CEN_429_MUST_ON }}
         with:
           upload_url: ${{ needs.create_release.outputs.upload_url }}
           asset_path: release/${{ matrix.config.artifact }}_web.tar.gz
@@ -855,7 +855,7 @@ jobs:
         if: matrix.config.active == true
         uses: actions/upload-release-asset@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.CMAKE_CPP_TEMPLATE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.CEN_429_MUST_ON }}
         with:
           upload_url: ${{ needs.create_release.outputs.upload_url }}
           asset_path: release/${{ matrix.config.artifact }}_pub.tar.gz
@@ -866,7 +866,7 @@ jobs:
         if: matrix.config.active == true
         uses: actions/upload-release-asset@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.CMAKE_CPP_TEMPLATE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.CEN_429_MUST_ON }}
         with:
           upload_url: ${{ needs.create_release.outputs.upload_url }}
           asset_path: release/${{ matrix.config.artifact }}_bin_release.tar.gz
@@ -877,7 +877,7 @@ jobs:
         if: matrix.config.active == true
         uses: actions/upload-release-asset@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.CMAKE_CPP_TEMPLATE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.CEN_429_MUST_ON }}
         with:
           upload_url: ${{ needs.create_release.outputs.upload_url }}
           asset_path: release/${{ matrix.config.artifact }}_bin_debug.tar.gz
@@ -888,7 +888,7 @@ jobs:
         if: matrix.config.active == true && matrix.config.doccoverage == true
         uses: actions/upload-release-asset@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.CMAKE_CPP_TEMPLATE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.CEN_429_MUST_ON }}
         with:
           upload_url: ${{ needs.create_release.outputs.upload_url }}
           asset_path: release/${{ matrix.config.artifact }}_dxy.tar.gz
@@ -899,7 +899,7 @@ jobs:
         if: matrix.config.active == true && matrix.config.testcoverage == true
         uses: actions/upload-release-asset@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.CMAKE_CPP_TEMPLATE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.CEN_429_MUST_ON }}
         with:
           upload_url: ${{ needs.create_release.outputs.upload_url }}
           asset_path: release/${{ matrix.config.artifact }}_tst.tar.gz
@@ -910,7 +910,7 @@ jobs:
         if: matrix.config.active == true
         uses: actions/upload-release-asset@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.CMAKE_CPP_TEMPLATE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.CEN_429_MUST_ON }}
         with:
           upload_url: ${{ needs.create_release.outputs.upload_url }}
           asset_path: release/${{ matrix.config.artifact }}_doc.tar.gz
