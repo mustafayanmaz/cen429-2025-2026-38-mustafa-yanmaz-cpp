@@ -41,6 +41,17 @@ typedef NTSTATUS (WINAPI *pNtQuerySystemInformation)(
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <dlfcn.h>
+
+// macOS compatibility: ptrace constants have different names on macOS
+#ifdef __APPLE__
+    #ifndef PTRACE_TRACEME
+        #define PTRACE_TRACEME PT_TRACE_ME
+    #endif
+    #ifndef PTRACE_DETACH
+        #define PTRACE_DETACH PT_DETACH
+    #endif
+#endif
+
 #endif
 
 // ============================================================================
