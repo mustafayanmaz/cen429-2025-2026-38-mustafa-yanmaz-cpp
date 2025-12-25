@@ -6,8 +6,15 @@
 #include "petcare.h"
 #include <sstream>
 #include <cstdio> 
+#include <cstdlib>
 #include "methods.h"
 #include <string>
+
+// Cross-platform compatibility for Windows-specific functions
+#ifndef _WIN32
+    #define _strdup strdup
+    #define _putenv putenv
+#endif
 
 /**
  * @class UserAuthTest
