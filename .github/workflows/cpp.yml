@@ -754,19 +754,7 @@ jobs:
               testcoverage: true,
               doccoverage: true
             }
-          - {
-              name: "macOS Latest Clang (C++11)",
-              os: macos-latest,
-              artifact: "macos_clang_c11",
-              build_type: "Release",
-              cc: "clang",
-              cxx: "clang++",
-              archiver: "tar -czvf",
-              generators: "Xcode",
-              active: false,
-              testcoverage: true,
-              doccoverage: true
-            }
+          
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v3
