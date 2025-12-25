@@ -426,10 +426,3 @@ For detailed security analysis:
 
 This project is developed as part of CEN429 Secure Software Development course.
 
----
-
-<div align="center">
-  <sub>Built with 🔒 by the PetCare Security Team</sub>
-  <br />
-  <sub>© 2025-2026 | Karabük University</sub>
-</div>
