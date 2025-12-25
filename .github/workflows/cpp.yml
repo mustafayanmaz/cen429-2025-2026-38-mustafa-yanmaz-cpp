@@ -154,7 +154,7 @@ jobs:
             cxx: "clang++",
             archiver: "tar -czvf",
             generators: "Xcode",
-            active: true,
+            active: false,
             testcoverage: true,
             doccoverage: true
           }
@@ -627,7 +627,7 @@ jobs:
             Changes in this release:
             ${{ steps.commit_summary.outputs.summary }}
 
-            Dr. Ugur CORUH
+            Mustafa Yanmaz / Onur Çakır / Fırat Atalay / Ali Ufuktan Topcu
           draft: false
           prerelease: false
 
@@ -764,19 +764,6 @@ jobs:
               archiver: "tar -czvf",
               generators: "Xcode",
               active: false,
-              testcoverage: true,
-              doccoverage: true
-            }
-          - {
-              name: "macOS Latest Clang (C++17)",
-              os: macos-latest,
-              artifact: "macos_clang_c17",
-              build_type: "Release",
-              cc: "clang",
-              cxx: "clang++",
-              archiver: "tar -czvf",
-              generators: "Xcode",
-              active: true,
               testcoverage: true,
               doccoverage: true
             }
